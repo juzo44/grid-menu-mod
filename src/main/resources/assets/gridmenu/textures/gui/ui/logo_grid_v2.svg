@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="192" viewBox="0 0 680 192">
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#25352b" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#101a14" stop-opacity="0.96"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-30%" width="140%" height="170%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
+      <feOffset dy="10"/>
+      <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M42 24h596l22 34-22 88H42l-22-34 22-88z" fill="#07100b"/>
+    <path d="M49 32h582l17 28-17 76H49l-17-28 17-76z" fill="url(#plate)" stroke="#78927c" stroke-width="3"/>
+    <path d="M49 32h582l8 13H41l8-13z" fill="#92b497" opacity="0.8"/>
+    <path d="M49 136h582l-5 10H54l-5-10z" fill="#46604c"/>
+    <text x="340" y="119" text-anchor="middle" fill="#f2f5ef" font-family="Arial Black, Impact, sans-serif" font-size="104" font-weight="900" letter-spacing="18">GRID</text>
+  </g>
+</svg>
