@@ -2,77 +2,127 @@ package ru.gridwarfare.menu;
 
 import net.minecraft.client.gui.GuiGraphics;
 
-/** Простые векторные иконки для меню (рисуются прямоугольниками, без текстур). */
+/**
+ * Векторные иконки для кнопок меню.
+ * Все рисуются прямоугольниками (fill), без текстур.
+ * Центр иконки — точка (cx, cy), size — полный размер.
+ */
 public final class UiIcons {
-    private UiIcons() {
-    }
+    private UiIcons() {}
 
+    /* ═══ ТРЕУГОЛЬНИК «PLAY» ═══ */
     public static void play(GuiGraphics g, int cx, int cy, int size, int color) {
         int half = size / 2;
-        for (int i = 0; i < size; i++) {
-            int h2 = Math.max(1, (i + 1) * half / size);
-            g.fill(cx - half + i, cy - h2, cx - half + i + 1, cy + h2, color);
+        // Правосторонний треугольник, row-by-row с увеличивающейся шириной
+        for (int row = 0; row < size; row++) {
+            // Нормализованная ширина: от 0 до full
+            int w = (int) ((row + 1) * (float) size / size);
+            int rowH = Math.max(1, (row + 1) * half / size);
+            g.fill(cx - half + row, cy - rowH, cx - half + row + 1, cy + rowH, color);
         }
     }
 
+    /* ═══ ГАЛОЧКА «CHECK» (для Одиночный мир) ═══ */
     public static void check(GuiGraphics g, int cx, int cy, int size, int color) {
-        line(g, cx - size / 2, cy, cx - size / 6, cy + size / 3, color);
-        line(g, cx - size / 6, cy + size / 3, cx + size / 2, cy - size / 2, color);
+        int h = size / 2;
+        // Галочка: (cx-h, cy) → (cx-h/3, cy+h/2.5) → (cx+h, cy-h)
+        bresenhamThick(g, cx - h, cy, cx - h / 3, cy + h * 2 / 5, color, 2);
+        bresenhamThick(g, cx - h / 3, cy + h * 2 / 5, cx + h, cy - h, color, 2);
     }
 
+    /* ═══ ШЕСТЕРЁНКА «SETTINGS» ═══ */
     public static void sliders(GuiGraphics g, int cx, int cy, int size, int color) {
         int half = size / 2;
-        int[] knobs = {-half + 3, half - 8, -half / 2};
-        for (int row = 0; row < 3; row++) {
-            int ly = cy - half + 3 + row * 7;
-            g.fill(cx - half, ly, cx + half, ly + 2, color);
-            int kx = cx - half + knobs[row];
-            g.fill(kx, ly - 2, kx + 7, ly + 4, color);
+        int lineW = size - 4;
+        int gap = (size - 6) / 3;
+        int knobW = Math.max(3, size * 7 / 22);
+        int knobH = Math.max(2, size / 5);
+        int lineH = Math.max(1, size / 11);
+
+        int startY = cy - half + 3;
+        // Три ползунка с разными позициями бегунков
+        for (int i = 0; i < 3; i++) {
+            int ly = startY + i * (gap + lineH);
+            // Линия
+            g.fill(cx - lineW / 2, ly, cx + lineW / 2, ly + lineH, color);
+            // Бегунок (разная позиция для каждого)
+            int knobOffsets[] = {lineW * 3 / 8, -lineW * 2 / 8, lineW / 8};
+            int kx = cx + knobOffsets[i] - knobW / 2;
+            g.fill(kx, ly - (knobH - lineH) / 2, kx + knobW, ly + (knobH - lineH) / 2 + lineH, color);
         }
     }
 
+    /* ═══ ИКОНКА «INFO» (буква i в круге) ═══ */
     public static void info(GuiGraphics g, int cx, int cy, int size, int color) {
         int half = size / 2;
-        g.fill(cx - 1, cy - half + 1, cx + 2, cy - half + 5, color);
-        g.fill(cx - 1, cy - 2, cx + 2, cy + half - 1, color);
+        int dotH = Math.max(2, size / 5);
+        int dotW = Math.max(3, size / 4);
+        // Точка сверху
+        g.fill(cx - dotW / 2, cy - half + 1, cx + dotW / 2, cy - half + 1 + dotH, color);
+        // Тело снизу (прямоугольник без скруглений — минимализм)
+        int bodyTop = cy - half + dotH + 3;
+        g.fill(cx - dotW / 2, bodyTop, cx + dotW / 2, cy + half - 1, color);
     }
 
+    /* ═══ СУМКА «SHOP» ═══ */
     public static void bag(GuiGraphics g, int cx, int cy, int size, int color) {
         int half = size / 2;
-        g.fill(cx - 2, cy - half, cx + 3, cy - half + 4, color);
-        g.fill(cx - half, cy - half + 4, cx + half, cy + half, color);
+        int bodyW = size - 4;
+        int bodyH = size * 3 / 5;
+        int bodyTop = cy - bodyH / 2 + 2;
+        // Ручка (маленькая дуга сверху)
+        int handleW = bodyW * 5 / 10;
+        int handleH = size * 2 / 8;
+        g.fill(cx - handleW / 2, bodyTop - handleH, cx - handleW / 2 + 2, bodyTop, color);
+        g.fill(cx + handleW / 2 - 2, bodyTop - handleH, cx + handleW / 2, bodyTop, color);
+        // Тело сумки
+        g.fill(cx - bodyW / 2, bodyTop, cx + bodyW / 2, bodyTop + bodyH, color);
     }
 
+    /* ═══ ВЫХОД «EXIT» (стрелка из двери) ═══ */
     public static void exit(GuiGraphics g, int cx, int cy, int size, int color) {
         int half = size / 2;
-        g.fill(cx - half, cy - 1, cx + half, cy + 2, color);
-        for (int i = 0; i < 5; i++) {
-            g.fill(cx + half - 5 + i, cy - 2 + i, cx + half - 5 + i + 1, cy + 3 - i, color);
+        // Дверная рамка (прямоугольник, открытая справа)
+        int frameW = 2;
+        int frameH = size - 4;
+        int fx = cx - half + 2;
+        int fy = cy - half + 2;
+        // Левая стенка
+        g.fill(fx, fy, fx + frameW, fy + frameH, color);
+        // Верхняя перекладина
+        g.fill(fx, fy, cx + 1, fy + frameW, color);
+        // Нижняя перекладина
+        g.fill(fx, fy + frameH - frameW, cx + 1, fy + frameH, color);
+        // Стрелка → (в правой части)
+        int arrowX = cx - 1;
+        int arrowLen = half - 3;
+        // Горизонтальная черта стрелки
+        g.fill(arrowX - arrowLen, cy - 1, arrowX + 3, cy + 2, color);
+        // Верхний луч стрелки
+        for (int i = 0; i < Math.min(5, arrowLen); i++) {
+            g.fill(arrowX - i, cy - 2 - i, arrowX - i + 2, cy - i, color);
+        }
+        // Нижний луч стрелки
+        for (int i = 0; i < Math.min(5, arrowLen); i++) {
+            g.fill(arrowX - i, cy + 2 + i, arrowX - i + 2, cy + i + 2, color);
         }
     }
 
-    private static void line(GuiGraphics g, int x0, int y0, int x1, int y1, int color) {
+    /* ═══ УТИЛИТА: толстая линия Брезенхема ═══ */
+    private static void bresenhamThick(GuiGraphics g, int x0, int y0, int x1, int y1, int color, int thickness) {
         int dx = Math.abs(x1 - x0);
         int dy = Math.abs(y1 - y0);
         int sx = x0 < x1 ? 1 : -1;
         int sy = y0 < y1 ? 1 : -1;
         int err = dx - dy;
-        int x = x0;
-        int y = y0;
-        for (int i = 0; i < 80; i++) {
-            g.fill(x, y, x + 2, y + 2, color);
-            if (x == x1 && y == y1) {
-                break;
-            }
+        int x = x0, y = y0;
+        int half = thickness / 2;
+        for (int i = 0; i < 200; i++) {
+            g.fill(x - half, y - half, x + half + 1, y + half + 1, color);
+            if (x == x1 && y == y1) break;
             int e2 = 2 * err;
-            if (e2 > -dy) {
-                err -= dy;
-                x += sx;
-            }
-            if (e2 < dx) {
-                err += dx;
-                y += sy;
-            }
+            if (e2 > -dy) { err -= dy; x += sx; }
+            if (e2 < dx) { err += dx; y += sy; }
         }
     }
 }
