@@ -10,15 +10,33 @@ import net.minecraft.client.gui.GuiGraphics;
 public final class UiIcons {
     private UiIcons() {}
 
-    /* ═══ ТРЕУГОЛЬНИК «PLAY» ═══ */
+    /* ═══ ТРЕУГОЛЬНИК «PLAY» (SVG: M8 5v14l11-7z в 24×24) ═══ */
     public static void play(GuiGraphics g, int cx, int cy, int size, int color) {
-        int half = size / 2;
-        // Правосторонний треугольник, row-by-row с увеличивающейся шириной
-        for (int row = 0; row < size; row++) {
-            // Нормализованная ширина: от 0 до full
-            int w = (int) ((row + 1) * (float) size / size);
-            int rowH = Math.max(1, (row + 1) * half / size);
-            g.fill(cx - half + row, cy - rowH, cx - half + row + 1, cy + rowH, color);
+        // SVG вершины: (8,5), (8,19), (19,12) — левая грань + правый пик
+        float scale = (float) size / 24f;
+        float ox = cx - size / 2f;
+        float oy = cy - size / 2f;
+        // Вершины в экранных координатах
+        float x0 = ox + 8 * scale;   // левая верх
+        float y0 = oy + 5 * scale;
+        float x1 = ox + 8 * scale;   // левая низ
+        float y1 = oy + 19 * scale;
+        float x2 = ox + 19 * scale;  // правый пик
+        float y2 = oy + 12 * scale;
+        int topY = (int) Math.min(y0, Math.min(y1, y2));
+        int botY = (int) Math.max(y0, Math.max(y1, y2));
+        for (int row = topY; row <= botY; row++) {
+            float y = row + 0.5f;
+            int leftX = (int) x0;
+            int rightX;
+            if (y <= y2) {
+                rightX = (int) (x0 + (x2 - x0) * (y - y0) / (y2 - y0));
+            } else {
+                rightX = (int) (x2 + (x1 - x2) * (y - y2) / (y1 - y2));
+            }
+            if (rightX > leftX) {
+                g.fill(leftX, row, rightX, row + 1, color);
+            }
         }
     }
 

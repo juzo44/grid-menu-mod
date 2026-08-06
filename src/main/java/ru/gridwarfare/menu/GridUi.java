@@ -74,9 +74,9 @@ public final class GridUi {
             float t = (float) y / Math.max(1, h - 1);
             int alpha;
             if (t < 0.4f) {
-                alpha = (int) lerp(0.72f, 0.50f, t / 0.4f);
+                alpha = (int)(lerp(0.72f, 0.50f, t / 0.4f) * 255f);
             } else {
-                alpha = (int) lerp(0.50f, 0.68f, (t - 0.4f) / 0.6f);
+                alpha = (int)(lerp(0.50f, 0.68f, (t - 0.4f) / 0.6f) * 255f);
             }
             g.fill(0, y, w, y + 2, (alpha << 24) | 0x0B0F0C);
         }

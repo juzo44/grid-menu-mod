@@ -3,7 +3,6 @@ package ru.gridwarfare.menu;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -74,11 +73,12 @@ public final class GridScreen extends Screen {
 
         p = GridUi.pad(width);
         rightColW = Math.min(280, width * 280 / 1920);
-        menuW = Math.min(440, width - p * 2 - rightColW - 40);
-        if (menuW < 200) menuW = width - p * 2 - 40;
-        // CSS: menu-col центрируется в доступном пространстве (flex: 1, justify-content: center)
-        int available = width - p * 2 - rightColW - 40;
-        menuX = p + (available - menuW) / 2;
+        menuW = Math.min(440, width - p * 2 - 20);
+        if (menuW < 200) menuW = width - p * 2 - 20;
+        // CSS: .menu-col { flex:1; align-items:center; } — центрируется во ВСЕЙ ширине .main-content
+        // .right-col — position:absolute, НЕ влияет на flex-flow
+        int contentW = width - p * 2;
+        menuX = p + (contentW - menuW) / 2;
 
         // CSS heights & gaps (exact from mockup)
         var fnt = Minecraft.getInstance().font;
@@ -143,19 +143,21 @@ public final class GridScreen extends Screen {
         }
 
         // ═══ SOCIAL ICONS (CSS: bottom:24px, right:40px, 38×38, gap 10px) ═══
+        // CSS: .social-icon { r50%; bg rgba(12,16,14,0.7); border 1px line; }
+        // CSS: .social-icon svg { 18×18; fill text-muted; } hover: fill accent
         int socialSize = 38;
         int socialGap  = 10;
         int socialY    = height - 24 - socialSize;
         int socialRight = width - 40; // CSS: right: 40px
         addRenderableWidget(new SocialIconButton(
                 socialRight - socialSize * 3 - socialGap * 2, socialY, socialSize,
-                GridUi.ICON_TG, GridUi.ICON_TG_H, b -> openLink(TG_URL)));
+                1, b -> openLink(TG_URL)));
         addRenderableWidget(new SocialIconButton(
                 socialRight - socialSize * 2 - socialGap, socialY, socialSize,
-                GridUi.ICON_DC, GridUi.ICON_DC_H, b -> openLink(DC_URL)));
+                2, b -> openLink(DC_URL)));
         addRenderableWidget(new SocialIconButton(
                 socialRight - socialSize, socialY, socialSize,
-                GridUi.ICON_GL, GridUi.ICON_GL_H, b -> openLink(WEB_URL)));
+                3, b -> openLink(WEB_URL)));
 
         loadAuth();
         loadNews();
@@ -376,8 +378,8 @@ public final class GridScreen extends Screen {
             charX += charW[i] + letterSpacing;
         }
 
-        // Тег «Военно-политический сервер» (CSS: .title-tag)
-        String tag = "Военно-политический сервер";
+        // CSS: .title-tag-text { 11px; 600; accent; UPPERCASE; letter-spacing 1.5px; }
+        String tag = "ВОЕННО-ПОЛИТИЧЕСКИЙ СЕРВЕР";
         int tagSpacing = 1; // ~1.5px CSS
         int tagTextW = spacedWidth(fnt, GridUi.styled(tag), tagSpacing);
         int tagPadX = 16;
@@ -515,7 +517,13 @@ public final class GridScreen extends Screen {
             JsonObject item = element.getAsJsonObject();
             String title = item.has("title") ? item.get("title").getAsString() : "";
             String date = item.has("publishedAt") ? item.get("publishedAt").getAsString() : "";
-            if (date.length() > 10) date = date.substring(0, 10);
+            // CSS: .news-date format DD.MM.YYYY
+            if (date.length() >= 10) {
+                String dd = date.substring(8, 10);
+                String mm = date.substring(5, 7);
+                String yyyy = date.substring(0, 4);
+                date = dd + "." + mm + "." + yyyy;
+            }
 
             // CSS: .news-item padding 8px 0
             int itemY = iy + 8;
@@ -597,25 +605,78 @@ public final class GridScreen extends Screen {
     }
 
     /* ═══════════════════════════
-       СОЦ. КНОПКА (текстурная, 38×38)
-       CSS: .social-icon { 38×38; r50%; bg rgba(12,16,14,0.7); border 1px solid line; }
-       ═════════════════════════ */
+       СОЦ. КНОПКА (векторная, 38×38, монохромная)
+       CSS: .social-icon { 38×38; r50%; bg rgba(12,16,14,0.7); border 1px line; }
+            .social-icon svg { 18×18; fill text-muted; } hover: fill accent
+       ═══════════════════════════ */
     private static final class SocialIconButton extends Button {
-        private final ResourceLocation normal;
-        private final ResourceLocation hovered;
+        private final int iconType; // 1=Telegram, 2=Discord, 3=Globe
 
-        SocialIconButton(int x, int y, int size, ResourceLocation normal, ResourceLocation hovered, OnPress press) {
+        SocialIconButton(int x, int y, int size, int iconType, OnPress press) {
             super(x, y, size, size, Component.empty(), press, DEFAULT_NARRATION);
-            this.normal = normal;
-            this.hovered = hovered;
+            this.iconType = iconType;
         }
 
         @Override
         protected void renderWidget(GuiGraphics g, int mx, int my, float pt) {
-            RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
-            g.blit(isHovered() && active ? hovered : normal,
-                    getX(), getY(), 0.0F, 0.0F, width, height, width, height);
+            boolean hover = isHovered() && active;
+            int x = getX(), y = getY(), s = width;
+            int r = s / 2;
+            int bg = hover ? GridUi.ACCENT_DIM : 0xB30C100E;
+            int border = hover ? GridUi.ACCENT_BORDER : GridUi.LINE_COLOR;
+            GridUi.roundedRect(g, x, y, s, s, r, border);
+            GridUi.roundedRect(g, x + 1, y + 1, s - 2, s - 2, Math.max(1, r - 1), bg);
+            int iconColor = hover ? GridUi.ACCENT : GridUi.TEXT_MUTED;
+            int icx = x + s / 2;
+            int icy = y + s / 2;
+            drawSocialIcon(g, iconType, icx, icy, 18, iconColor);
+        }
+
+        private static void drawSocialIcon(GuiGraphics g, int type, int cx, int cy, int size, int color) {
+            int h = size / 2;
+            switch (type) {
+                case 1 -> { // Telegram: бумажный самолик
+                    int left = cx - h + 3, right = cx + h - 3;
+                    int top = cy - h + 4, bot = cy + h - 4;
+                    int midY = cy + 1;
+                    for (int row = top; row <= bot; row++) {
+                        int xEnd;
+                        if (row < midY) {
+                            int t = row - top, maxT = midY - top;
+                            xEnd = left + 2 + (right - left - 2) * t / maxT;
+                        } else {
+                            int t = row - midY, maxT = bot - midY;
+                            xEnd = left + 2 + (right - left - 2) * (1 - t / maxT);
+                        }
+                        g.fill(left, row, xEnd, row + 1, color);
+                    }
+                }
+                case 2 -> { // Discord: упрощённая маска
+                    int rr = h - 4;
+                    for (int dy = -rr; dy <= rr; dy++) {
+                        for (int dx = -rr; dx <= rr; dx++) {
+                            if (dx * dx * 10 + dy * dy * 16 <= rr * rr * 10) {
+                                boolean eye = (dx >= -4 && dx <= -1 && dy >= -2 && dy <= 0)
+                                        || (dx >= 1 && dx <= 4 && dy >= -2 && dy <= 0);
+                                if (!eye)
+                                    g.fill(cx + dx, cy + dy, cx + dx + 1, cy + dy + 1, color);
+                            }
+                        }
+                    }
+                }
+                case 3 -> { // Globe: круг + меридиан + экватор
+                    int rr = h - 4;
+                    for (int dy = -rr; dy <= rr; dy++) {
+                        int w = (int) Math.sqrt(Math.max(0, rr * rr - dy * dy));
+                        if (w > 0) {
+                            g.fill(cx - w, cy + dy, cx - w + 1, cy + dy + 1, color);
+                            g.fill(cx + w, cy + dy, cx + w + 1, cy + dy + 1, color);
+                        }
+                    }
+                    g.fill(cx - rr, cy, cx + rr, cy + 1, color);
+                    g.fill(cx, cy - rr, cx + 1, cy + rr, color);
+                }
+            }
         }
     }
 
