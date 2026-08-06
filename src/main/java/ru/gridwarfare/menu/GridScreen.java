@@ -1,5 +1,8 @@
 package ru.gridwarfare.menu;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -14,64 +17,95 @@ import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
-public final class GridScreen extends Screen {
-    private static final ResourceLocation T_BG = tex("ui/bg_menu");
-    private static final ResourceLocation T_EMBLEM = tex("ui/logo_grid_v2");
-    private static final ResourceLocation T_TG_N = tex("ui/circle_tg_n");
-    private static final ResourceLocation T_TG_H = tex("ui/circle_tg_h");
-    private static final ResourceLocation T_DC_N = tex("ui/circle_dc_n");
-    private static final ResourceLocation T_DC_H = tex("ui/circle_dc_h");
-    private static final ResourceLocation T_GL_N = tex("ui/circle_gl_n");
-    private static final ResourceLocation T_GL_H = tex("ui/circle_gl_h");
+import java.util.ArrayList;
+import java.util.List;
 
+public final class GridScreen extends Screen {
     private static final String MAIN_IP = "grid-server.ru";
     private static final String TG_URL = "https://t.me/gridwarfare";
     private static final String DC_URL = "https://discord.gg/gridwarfare";
     private static final String WEB_URL = "https://grid-server.ru";
 
-    private long openMillis = 0L;
+    private static final long NEWS_REFRESH_MS = 60000L;
+    private static final long AUTH_REFRESH_MS = 30000L;
+
+    private static final int ICON_PLAY = 1;
+    private static final int ICON_CHECK = 2;
+    private static final int ICON_SLIDERS = 3;
+    private static final int ICON_INFO = 4;
+    private static final int ICON_BAG = 5;
+    private static final int ICON_EXIT = 6;
+
+    private JsonObject me;
+    private JsonArray news;
+    private long newsFetchedAt;
+    private long authFetchedAt;
 
     public GridScreen() {
         super(Component.literal("GRID"));
     }
 
-    private static ResourceLocation tex(String name) {
-        return ResourceLocation.fromNamespaceAndPath("gridmenu", "textures/gui/" + name + ".png");
-    }
-
-    private static int playYFor(int height) {
-        int emblemBottom = (int) (height * 0.07) + 96;
-        int desired = (int) (height * 0.40);
-        int low = emblemBottom + 12;
-        int high = height - 220;
-        return Math.max(low, Math.min(desired, high));
+    private static int pad() {
+        return Math.max(24, Math.min(120, (int) (Minecraft.getInstance().getWindow().getGuiScaledWidth() * 0.08)));
     }
 
     @Override
     protected void init() {
-        openMillis = Util.getMillis();
         ServerStatusManager.start();
-        int cx = width / 2;
-        int playY = playYFor(height);
+        int bigW = Math.min(380, width * 32 / 100);
+        int bigX = (width - bigW) / 2;
+        int playY = Math.max(150, (int) (height * 0.30));
+        int singleY = playY + 56 + 8;
+        int rowY = singleY + 48 + 12;
 
-        int menuWidth = Math.min(460, width - 48);
-        int menuX = cx - menuWidth / 2;
-        addRenderableWidget(new MenuButton(menuX, playY, menuWidth, 58, "▶", "ОСНОВНОЙ СЕРВЕР", true, b -> connectToServer()));
-        addRenderableWidget(new MenuButton(menuX, playY + 66, menuWidth, 58, "◆", "ОДИНОЧНЫЙ МИР", false, b -> minecraft.setScreen(new SelectWorldScreen(this))));
-        int third = (menuWidth - 16) / 3;
-        addRenderableWidget(new MenuButton(menuX, playY + 132, third, 40, "⚙", "НАСТРОЙКИ", false, b -> minecraft.setScreen(new OptionsScreen(this, minecraft.options))));
-        addRenderableWidget(new MenuButton(menuX + third + 8, playY + 132, third, 40, "ⓘ", "О СЕРВЕРЕ", false, b -> minecraft.setScreen(new ServerInfoScreen(this))));
-        addRenderableWidget(new MenuButton(menuX + (third + 8) * 2, playY + 132, third, 40, "×", "ВЫХОД", false, b -> minecraft.stop()));
+        addRenderableWidget(new MenuButton(bigX, playY, bigW, 56, ICON_PLAY, "ИГРАТЬ", "Подключение к серверу",
+                MenuButton.Type.PRIMARY, b -> connectToServer()));
+        addRenderableWidget(new MenuButton(bigX, singleY, bigW, 48, ICON_CHECK, "ОДИНОЧНЫЙ МИР", "Одиночная игра",
+                MenuButton.Type.SECONDARY, b -> minecraft.setScreen(new SelectWorldScreen(this))));
 
-        int cy = height - 54;
-        addRenderableWidget(new UiButton(width - 152, cy, 42, 42, T_TG_N, T_TG_H, b -> openLink(TG_URL)));
-        addRenderableWidget(new UiButton(width - 104, cy, 42, 42, T_DC_N, T_DC_H, b -> openLink(DC_URL)));
-        addRenderableWidget(new UiButton(width - 56, cy, 42, 42, T_GL_N, T_GL_H, b -> openLink(WEB_URL)));
+        List<MenuButton> small = new ArrayList<>();
+        small.add(new MenuButton(0, rowY, 0, 40, ICON_SLIDERS, "НАСТРОЙКИ", null,
+                MenuButton.Type.SMALL, b -> minecraft.setScreen(new OptionsScreen(this, minecraft.options))));
+        small.add(new MenuButton(0, rowY, 0, 40, ICON_INFO, "О СЕРВЕРЕ", null,
+                MenuButton.Type.SMALL, b -> minecraft.setScreen(new ServerInfoScreen(this))));
+        if (isShopAvailable()) {
+            small.add(new MenuButton(0, rowY, 0, 40, ICON_BAG, "МАГАЗИН", null,
+                    MenuButton.Type.SMALL, b -> openShop()));
+        }
+        small.add(new MenuButton(0, rowY, 0, 40, ICON_EXIT, "ВЫХОД", null,
+                MenuButton.Type.SMALL, b -> minecraft.stop()));
+
+        int gap = 8;
+        int sw = (bigW - (small.size() - 1) * gap) / small.size();
+        int sx = bigX;
+        for (MenuButton button : small) {
+            button.setX(sx);
+            button.setWidth(sw);
+            addRenderableWidget(button);
+            sx += sw + gap;
+        }
+
+        int sy = height - 74;
+        int right = width - pad();
+        int base = right - 130;
+        addRenderableWidget(new SocialIconButton(base, sy, 40, GridUi.ICON_TG, GridUi.ICON_TG_H, b -> openLink(TG_URL)));
+        addRenderableWidget(new SocialIconButton(base + 50, sy, 40, GridUi.ICON_DC, GridUi.ICON_DC_H, b -> openLink(DC_URL)));
+        addRenderableWidget(new SocialIconButton(base + 100, sy, 40, GridUi.ICON_GL, GridUi.ICON_GL_H, b -> openLink(WEB_URL)));
+
+        loadAuth();
+        loadNews();
     }
 
     @Override
     public void tick() {
         ServerStatusManager.tick();
+        long now = Util.getMillis();
+        if (now - newsFetchedAt > NEWS_REFRESH_MS) {
+            loadNews();
+        }
+        if (now - authFetchedAt > AUTH_REFRESH_MS) {
+            loadAuth();
+        }
     }
 
     @Override
@@ -79,56 +113,247 @@ public final class GridScreen extends Screen {
         ServerStatusManager.stop();
     }
 
+    private void loadAuth() {
+        authFetchedAt = Util.getMillis();
+        new Thread(() -> {
+            JsonObject result = GridApiClient.me();
+            Minecraft.getInstance().execute(() -> me = result);
+        }, "GRID-menu-auth").start();
+    }
+
+    private void loadNews() {
+        newsFetchedAt = Util.getMillis();
+        new Thread(() -> {
+            JsonArray result = GridApiClient.news();
+            Minecraft.getInstance().execute(() -> {
+                news = result;
+                newsFetchedAt = Util.getMillis();
+            });
+        }, "GRID-menu-news").start();
+    }
+
+    private static boolean isShopAvailable() {
+        try {
+            Class.forName("ru.gridwarfare.shop.GridShopScreen");
+            return true;
+        } catch (Throwable error) {
+            return false;
+        }
+    }
+
+    private void openShop() {
+        try {
+            Class<?> screenClass = Class.forName("ru.gridwarfare.shop.GridShopScreen");
+            Object instance = screenClass.getDeclaredConstructor().newInstance();
+            if (instance instanceof Screen screen) {
+                minecraft.setScreen(screen);
+            }
+        } catch (Throwable error) {
+            minecraft.setScreen(new ServerInfoScreen(this));
+        }
+    }
+
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        blitBackground(graphics, T_BG, width, height);
-
-        float time = (float) (Util.getMillis() - openMillis) / 1000.0F;
-        int vh = height / 3;
-        for (int i = 0; i < vh; i++) {
-            float t = (float) i / vh;
-            int alpha = Math.min((int) (t * 150), 150);
-            graphics.fill(0, height - vh + i, width, height - vh + i + 1, (alpha << 24) | 0x000B140A);
-        }
-
-        int glow = (int) ((Math.sin(time * 1.6F) * 0.5F + 0.5F) * 16);
-        for (int i = 0; i < 3; i++) {
-            graphics.fill(0, i, width, i + 1, ((18 + glow) << 24) | 0x00000000);
-        }
-        for (int i = 0; i < 2; i++) {
-            graphics.fill(0, height - 1 - i, width, height - i, ((14 + glow / 2) << 24) | 0x00000000);
-        }
-
-        int cx = width / 2;
-        int logoY = (int) (height * 0.07);
-        blitTex(graphics, T_EMBLEM, cx - 170, logoY, 340, 96);
-
-        int playY = playYFor(height);
+        GridUi.background(graphics, width, height);
+        renderTopbar(graphics);
+        renderTitle(graphics);
+        renderRightColumn(graphics);
+        renderVersion(graphics);
         super.render(graphics, mouseX, mouseY, partialTick);
-
-        graphics.drawCenteredString(font, "GRID  CLIENT  •  1.21.1", cx, height - 26, 0x80647B5A);
     }
 
-    @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    private void renderTopbar(GuiGraphics g) {
+        int h = 70;
+        for (int y = 0; y < h; y++) {
+            float t = (float) y / (h - 1);
+            g.fill(0, y, width, y + 1, GridUi.lerpColor(0xEF080B0A, 0xC5000000, t));
+        }
+        g.fill(0, h - 1, width, h, 0xFF273129);
+
+        int p = pad();
+        GridUi.brandMark(g, p + 6, 19, 32);
+        g.drawString(font, GridUi.styled("GRID"), p + 50, 28, 0xFFFFFFFF, false);
+        renderAuthCard(g);
     }
 
-    private static void blitBackground(GuiGraphics g, ResourceLocation tex, int w, int h) {
-        int tw = 1920, th = 1080;
-        float scale = Math.max((float) w / tw, (float) h / th);
-        int srcW = Math.min(tw, (int) Math.ceil(w / scale));
-        int srcH = Math.min(th, (int) Math.ceil(h / scale));
-        int ox = (tw - srcW) / 2;
-        int oy = (th - srcH) / 2;
-        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        g.blit(tex, 0, 0, w, h, ox, oy, srcW, srcH, tw, th);
-        com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+    private void renderAuthCard(GuiGraphics g) {
+        int right = width - pad();
+        String nick = "ГОСТЬ";
+        String rank = "";
+        boolean authed = me != null;
+        if (authed) {
+            if (me.has("username")) {
+                nick = me.get("username").getAsString().toUpperCase();
+            }
+            if (me.has("donate")) {
+                rank = me.get("donate").getAsString().toUpperCase();
+            }
+            if (rank.isEmpty() && me.has("rank")) {
+                rank = me.get("rank").getAsString().toUpperCase();
+            }
+        }
+
+        int nickW = font.width(GridUi.styled(nick));
+        int rankW = rank.isEmpty() ? 0 : font.width(GridUi.styled(rank));
+        int line1 = 18 + nickW + (rank.isEmpty() ? 0 : 8 + rankW + 12) + 18;
+
+        String balLabel = authed ? "Баланс: " : "Авторизация через лаунчер";
+        String balValue = authed ? fmt(balance()) + " ₽" : "";
+        int line2 = 18 + font.width(GridUi.styled(balLabel)) + (balValue.isEmpty() ? 0 : 4 + font.width(GridUi.styled(balValue))) + 18;
+
+        int cardW = Math.max(line1, line2);
+        int cardH = authed ? 46 : 34;
+        int x = right - cardW;
+        int y = (70 - cardH) / 2;
+        GridUi.panel(g, x, y, cardW, cardH, 10);
+
+        int tx = x + 18;
+        int ty = y + 12;
+        g.drawString(font, GridUi.styled(nick), tx, ty, 0xFFF3F6F3, false);
+        if (!rank.isEmpty()) {
+            g.fill(tx + nickW + 8, ty - 1, tx + nickW + 8 + rankW + 12, ty + 9, 0x2668C284);
+            g.drawString(font, GridUi.styled(rank), tx + nickW + 14, ty, 0xFF68C284, false);
+        }
+        if (authed) {
+            int lblW = font.width(GridUi.styled(balLabel));
+            g.drawString(font, GridUi.styled(balLabel), tx, ty + 13, 0xFF8B978F, false);
+            g.drawString(font, GridUi.styled(balValue), tx + lblW + 4, ty + 13, 0xFF68C284, false);
+        } else {
+            g.drawString(font, GridUi.styled(balLabel), tx, ty + 8, 0xFF8B978F, false);
+        }
     }
 
-    private static void blitTex(GuiGraphics g, ResourceLocation tex, int x, int y, int w, int h) {
-        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        g.blit(tex, x, y, w, h, 0.0F, 0.0F, w * 2, h * 2, w * 2, h * 2);
-        com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+    private long balance() {
+        return me != null && me.has("balance") ? me.get("balance").getAsLong() : 0L;
+    }
+
+    private static String fmt(long value) {
+        String digits = String.valueOf(Math.abs(value));
+        StringBuilder sb = new StringBuilder(digits);
+        for (int i = sb.length() - 3; i > 0; i -= 3) sb.insert(i, ' ');
+        if (value < 0) sb.insert(0, '-');
+        return sb.toString();
+    }
+
+    private void renderTitle(GuiGraphics g) {
+        int bigW = Math.min(380, width * 32 / 100);
+        int cx = width / 2;
+        int playY = Math.max(150, (int) (height * 0.30));
+        int baseY = Math.max(80, playY - 96);
+
+        int boxW = 280;
+        int boxH = 56;
+        int x = cx - boxW / 2;
+        roundedFill(g, x, baseY + 7, boxW, boxH, 10, 0xFF387A50);
+        roundedFill(g, x, baseY + 4, boxW, boxH, 10, 0xFF4A9C66);
+        roundedFill(g, x, baseY, boxW, boxH, 10, 0xFF68C284);
+
+        g.pose().pushPose();
+        g.pose().translate(cx, baseY + boxH / 2, 0.0F);
+        g.pose().scale(3.0F, 3.0F, 1.0F);
+        g.drawCenteredString(font, GridUi.styled("GRID"), 0, -4, 0xFF0B0F0C);
+        g.pose().popPose();
+
+        String tag = "Военно-политический сервер";
+        int tw = font.width(GridUi.styled(tag));
+        int ty = baseY + boxH + 14;
+        g.fill(cx - tw / 2 - 14, ty - 2, cx + tw / 2 + 14, ty + 9, 0x2668C284);
+        g.drawString(font, GridUi.styled(tag), cx - tw / 2, ty, 0xFF68C284, false);
+    }
+
+    private void renderRightColumn(GuiGraphics g) {
+        int rw = Math.min(252, width * 21 / 100);
+        int rx = width - pad() - rw;
+
+        int shown = news == null ? 0 : Math.min(4, news.size());
+        int statusH = 108;
+        int newsH = 40 + shown * 38;
+        if (shown == 0) {
+            newsH = 40 + 34;
+        }
+        int total = statusH + 10 + newsH;
+        int ry = Math.max(74, (height - total) / 2);
+        if (ry + total > height - 90) {
+            ry = height - 90 - total;
+        }
+
+        renderStatusPanel(g, rx, ry, rw, statusH);
+        renderNewsPanel(g, rx, ry + statusH + 10, rw, newsH);
+    }
+
+    private void renderStatusPanel(GuiGraphics g, int x, int y, int w, int h) {
+        GridUi.card(g, x, y, w, h);
+        g.drawString(font, GridUi.styled("СТАТУС СЕРВЕРА"), x + 16, y + 12, 0xFF8B978F, false);
+
+        int state = ServerStatusManager.getState();
+        boolean online = state == ServerStatusManager.ONLINE;
+        int dot = online ? 0xFF68C284 : 0xFF616A64;
+        String label = online ? "Сервер работает" : state == ServerStatusManager.OFFLINE ? "Сервер недоступен" : "Проверка…";
+        int labelColor = online ? 0xFF68C284 : state == ServerStatusManager.OFFLINE ? 0xFFE06666 : 0xFF9AA5A0;
+
+        int dx = x + 16;
+        int dy = y + 26;
+        g.fill(dx, dy, dx + 6, dy + 6, dot);
+        g.drawString(font, GridUi.styled(label), dx + 12, dy - 2, labelColor, false);
+
+        if (online) {
+            int value = ServerStatusManager.getOnline();
+            g.pose().pushPose();
+            g.pose().translate(dx, dy + 18, 0.0F);
+            g.pose().scale(2.0F, 2.0F, 1.0F);
+            g.drawString(font, GridUi.styled(String.valueOf(value)), 0, 0, 0xFFF3F6F3, false);
+            g.pose().popPose();
+            String players = "игрока";
+            g.drawString(font, GridUi.styled(players), dx + 18, dy + 24, 0xFF8B978F, false);
+
+            int barY = dy + 38;
+            g.fill(dx, barY, x + w - 16, barY + 3, 0xFF344038);
+            int max = ServerStatusManager.getMax();
+            if (max > 0) {
+                int fillW = (int) ((x + w - 16 - dx) * value / max);
+                g.fill(dx, barY, dx + fillW, barY + 3, 0xFF68C284);
+            }
+        } else {
+            g.drawString(font, GridUi.styled("—"), dx, dy + 16, 0xFFF3F6F3, false);
+        }
+    }
+
+    private void renderNewsPanel(GuiGraphics g, int x, int y, int w, int h) {
+        GridUi.card(g, x, y, w, h);
+        g.drawString(font, GridUi.styled("НОВОСТИ"), x + 16, y + 12, 0xFF8B978F, false);
+
+        if (news == null) {
+            g.drawString(font, GridUi.styled("Загрузка…"), x + 16, y + 30, 0xFF5A655E, false);
+            return;
+        }
+
+        int iy = y + 30;
+        int shown = 0;
+        for (JsonElement element : news) {
+            if (shown >= 4) {
+                break;
+            }
+            JsonObject item = element.getAsJsonObject();
+            String title = item.has("title") ? item.get("title").getAsString() : "";
+            String date = item.has("publishedAt") ? item.get("publishedAt").getAsString() : "";
+            if (date.length() > 10) {
+                date = date.substring(0, 10);
+            }
+            g.drawString(font, GridUi.styled(date), x + 16, iy, 0xFF5A655E, false);
+            String clipped = font.plainSubstrByWidth(title, w - 32);
+            g.drawString(font, GridUi.styled(clipped), x + 16, iy + 10, 0xFFF3F6F3, false);
+            g.fill(x + 16, iy + 28, x + w - 16, iy + 29, 0x1A344038);
+            iy += 38;
+            shown++;
+        }
+        if (shown == 0) {
+            g.drawString(font, GridUi.styled("Новостей пока нет"), x + 16, y + 30, 0xFF5A655E, false);
+        }
+    }
+
+    private void renderVersion(GuiGraphics g) {
+        g.drawString(font, GridUi.styled("Minecraft 1.21.1 · NeoForge · GRID v0.1.0"), pad(), height - 20, 0xFF5A655E, false);
     }
 
     private void connectToServer() {
@@ -148,103 +373,130 @@ public final class GridScreen extends Screen {
         }
     }
 
-    private static final class UiButton extends Button {
-        private final ResourceLocation normal;
-        private final ResourceLocation hover;
-
-        UiButton(int x, int y, int w, int h, ResourceLocation normal, ResourceLocation hover, OnPress press) {
-            super(x, y, w, h, Component.literal(""), press, DEFAULT_NARRATION);
-            this.normal = normal;
-            this.hover = hover;
-        }
-
-        @Override
-        protected void renderWidget(GuiGraphics g, int mx, int my, float pt) {
-            blitTex(g, isHovered() && active ? hover : normal, getX(), getY(), width, height);
+    private static void roundedFill(GuiGraphics g, int x, int y, int w, int h, int radius, int color) {
+        int r = Math.min(radius, Math.min(w, h) / 2);
+        for (int row = 0; row < h; row++) {
+            int edge = Math.min(row, h - 1 - row);
+            int inset = 0;
+            if (edge < r) {
+                double dy = r - edge - 0.5;
+                inset = r - (int) Math.floor(Math.sqrt(Math.max(0, r * r - dy * dy)));
+            }
+            g.fill(x + inset, y + row, x + w - inset, y + row + 1, color);
         }
     }
 
-    private static final class MenuButton extends Button {
-        private final String icon;
-        private final String title;
-        private final boolean primary;
+    @Override
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    }
 
-        MenuButton(int x, int y, int w, int h, String icon, String title, boolean primary, OnPress press) {
-            super(x, y, w, h, Component.literal(title), press, DEFAULT_NARRATION);
-            this.icon = icon;
-            this.title = title;
-            this.primary = primary;
+    @Override
+    public boolean isPauseScreen() {
+        return false;
+    }
+
+    /** Кнопка-иконка соцсети (круглая, с вариантом наведения). */
+    private static final class SocialIconButton extends Button {
+        private final ResourceLocation normal;
+        private final ResourceLocation hovered;
+
+        SocialIconButton(int x, int y, int size, ResourceLocation normal, ResourceLocation hovered, OnPress press) {
+            super(x, y, size, size, Component.empty(), press, DEFAULT_NARRATION);
+            this.normal = normal;
+            this.hovered = hovered;
         }
 
         @Override
         protected void renderWidget(GuiGraphics g, int mx, int my, float pt) {
             boolean hover = isHovered() && active;
-            int background = primary
-                ? (hover ? 0xC0476750 : 0xA936523F)
-                : (hover ? 0xBC28352D : 0x98101915);
-            int border = primary ? 0xE89BBCA0 : (hover ? 0xD67E9C83 : 0x90617365);
+            int x = getX(), y = getY(), s = width;
+            g.blit(hover ? hovered : normal, x, y, 0.0F, 0.0F, s, s, s, s);
+        }
+    }
 
-            if (hover && primary) {
-                roundedRect(g, getX() - 3, getY() + 1, width + 6, height + 6, 12, 0x38364D3B);
-            }
+    /** Кнопка в стиле макета меню: primary (зелёная), secondary или small с иконкой. */
+    private static final class MenuButton extends Button {
+        enum Type { PRIMARY, SECONDARY, SMALL }
 
-            roundedRect(g, getX() + 2, getY() + 4, width, height, 9, 0x70000000);
-            roundedRect(g, getX(), getY(), width, height, 9, border);
-            roundedRect(g, getX() + 1, getY() + 1, width - 2, height - 2, 8, background);
+        private final Type type;
+        private final int icon;
+        private final String desc;
 
+        MenuButton(int x, int y, int w, int h, int icon, String title, String desc, Type type, OnPress press) {
+            super(x, y, w, h, GridUi.styled(title), press, DEFAULT_NARRATION);
+            this.icon = icon;
+            this.desc = desc;
+            this.type = type;
+        }
+
+        @Override
+        protected void renderWidget(GuiGraphics g, int mx, int my, float pt) {
+            boolean hover = isHovered() && active;
+            int x = getX(), y = getY(), w = width, h = height;
             var font = Minecraft.getInstance().font;
-            int textColor = 0xFFF1F4EF;
-            int iconColor = primary ? 0xFFB3D6B8 : 0xFF88AA8F;
-            int iconX = getX() + 34;
-            int titleY = getY() + 14;
-            roundedRect(g, getX() + 17, getY() + 12, 34, 34, 17, primary ? 0x60344D3B : 0x60415B48);
-            g.drawCenteredString(font, icon, iconX, getY() + (height - 8) / 2, iconColor);
 
-            int titleWidth = font.width(title);
-            g.drawString(font, title, getX() + 64, titleY, textColor, false);
-
-            if (primary) {
-                String subtitle = serverSubtitle();
-                int subtitleColor = serverSubtitleColor();
-                g.drawString(font, subtitle, getX() + 64, getY() + 31, subtitleColor, false);
-            } else {
-                g.drawString(font, title, getX() + 64 + titleWidth + 8, getY() + (height - 8) / 2, 0x7F9EAEA2, false);
-            }
-        }
-
-        private static String serverSubtitle() {
-            switch (ServerStatusManager.getState()) {
-                case ServerStatusManager.ONLINE:
-                    String pingText = ServerStatusManager.getPing() > 0 ? " · " + ServerStatusManager.getPing() + " мс" : "";
-                    return "● Онлайн " + ServerStatusManager.getOnline() + "/" + ServerStatusManager.getMax() + pingText;
-                case ServerStatusManager.OFFLINE:
-                    return "○ Сервер недоступен";
-                default:
-                    return "◌ Проверка сервера...";
-            }
-        }
-
-        private static int serverSubtitleColor() {
-            switch (ServerStatusManager.getState()) {
-                case ServerStatusManager.ONLINE:
-                    return 0xFF7BD389;
-                case ServerStatusManager.OFFLINE:
-                    return 0xFFE06666;
-                default:
-                    return 0xFF9AA5A0;
-            }
-        }
-
-        private static void roundedRect(GuiGraphics g, int x, int y, int w, int h, int radius, int color) {
-            int r = Math.min(radius, Math.min(w, h) / 2);
-            for (int row = 0; row < h; row++) {
-                int edge = Math.min(row, h - 1 - row);
-                int inset = 0;
-                if (edge < r) {
-                    double dy = r - edge - 0.5;
-                    inset = r - (int) Math.floor(Math.sqrt(Math.max(0, r * r - dy * dy)));
+            int bg;
+            int line;
+            int text;
+            int sub;
+            int iconColor;
+            switch (type) {
+                case PRIMARY -> {
+                    bg = hover ? 0xFF7CD090 : 0xFF68C284;
+                    line = 0xFF68C284;
+                    text = 0xFF0B0F0C;
+                    sub = 0x990B0F0C;
+                    iconColor = 0xFF0B0F0C;
                 }
-                g.fill(x + inset, y + row, x + w - inset, y + row + 1, color);
+                case SECONDARY -> {
+                    bg = hover ? 0xFF121814 : 0xFF0C100E;
+                    line = hover ? 0x5968C284 : 0xFF344038;
+                    text = 0xFFF3F6F3;
+                    sub = 0xFF8B978F;
+                    iconColor = 0xFF68C284;
+                }
+                default -> {
+                    bg = hover ? 0xFF121814 : 0xFF0C100E;
+                    line = hover ? 0x5968C284 : 0xFF344038;
+                    text = hover ? 0xFFF3F6F3 : 0xFF8B978F;
+                    sub = 0xFF8B978F;
+                    iconColor = hover ? 0xFF68C284 : 0xFF8B978F;
+                }
+            }
+
+            int radius = Math.min(10, Math.min(w, h) / 2);
+            roundedFill(g, x, y, w, h, radius, line);
+            roundedFill(g, x + 1, y + 1, w - 2, h - 2, Math.max(4, radius - 1), bg);
+
+            if (type == Type.SMALL) {
+                int iconSize = 15;
+                String title = getMessage().getString();
+                int textW = font.width(getMessage());
+                int total = iconSize + 6 + textW;
+                int start = x + (w - total) / 2;
+                drawIcon(g, icon, start + iconSize / 2, y + h / 2, iconSize, iconColor);
+                g.drawString(font, getMessage(), start + iconSize + 6, y + (h - 8) / 2, text, false);
+            } else {
+                int pad = Math.max(14, w * 5 / 100);
+                int iconSize = 22;
+                int iconY = y + h / 2;
+                drawIcon(g, icon, x + pad + iconSize / 2, iconY, iconSize, iconColor);
+                int textX = x + pad + iconSize + 12;
+                g.drawString(font, getMessage(), textX, y + h / 2 - 9, text, false);
+                g.drawString(font, GridUi.styled(desc), textX, y + h / 2 + 3, sub, false);
+            }
+        }
+
+        private static void drawIcon(GuiGraphics g, int icon, int cx, int cy, int size, int color) {
+            switch (icon) {
+                case ICON_PLAY -> UiIcons.play(g, cx, cy, size, color);
+                case ICON_CHECK -> UiIcons.check(g, cx, cy, size, color);
+                case ICON_SLIDERS -> UiIcons.sliders(g, cx, cy, size, color);
+                case ICON_INFO -> UiIcons.info(g, cx, cy, size, color);
+                case ICON_BAG -> UiIcons.bag(g, cx, cy, size, color);
+                case ICON_EXIT -> UiIcons.exit(g, cx, cy, size, color);
+                default -> {
+                }
             }
         }
     }

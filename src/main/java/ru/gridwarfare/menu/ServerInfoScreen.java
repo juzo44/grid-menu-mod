@@ -9,12 +9,8 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 
 public final class ServerInfoScreen extends Screen {
-    private static final ResourceLocation T_BG = ResourceLocation.fromNamespaceAndPath("gridmenu", "textures/gui/ui/bg_menu.png");
-    private static final ResourceLocation T_PANEL = ResourceLocation.fromNamespaceAndPath("gridmenu", "textures/gui/ui/panel_info.png");
-
     private static final String IP = "grid-server.ru";
     private static final String TG_URL = "https://t.me/gridwarfare";
     private static final String DC_URL = "https://discord.gg/gridwarfare";
@@ -73,16 +69,11 @@ public final class ServerInfoScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         int w = width, h = height;
-        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        graphics.blit(T_BG, 0, 0, w, h, 0, 0, 1920, 1080, 1920, 1080);
-        com.mojang.blaze3d.systems.RenderSystem.disableBlend();
-        graphics.fill(0, 0, w, h, 0xC80B140A);
+        GridUi.background(graphics, w, h);
 
         int cx = width / 2;
         int py = Math.max(height / 2 - 210, 30);
-        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        graphics.blit(T_PANEL, cx - 280, py, 560, 420, 0.0F, 0.0F, 1120, 840, 1120, 840);
-        com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+        GridUi.panel(graphics, cx - 280, py, 560, 420, 8);
 
         graphics.drawCenteredString(font, "О СЕРВЕРЕ", cx, py + 28, 0xFFE8EEE6);
         graphics.fill(cx - 200, py + 48, cx + 200, py + 49, 0x605C7A4A);
@@ -115,10 +106,10 @@ public final class ServerInfoScreen extends Screen {
             ty += 14;
         }
 
-        graphics.drawCenteredString(font, "Соцсети", cx, py + 220, 0xFF93A080);
+        graphics.drawCenteredString(font, "СОЦСЕТИ", cx, py + 220, 0xFF93A080);
 
         super.render(graphics, mouseX, mouseY, partialTick);
-        graphics.drawCenteredString(font, "GRID CLIENT • 1.21.1", cx, height - 26, 0x80647B5A);
+        graphics.drawCenteredString(font, "GRID CLIENT · 1.21.1", cx, height - 20, 0x505A6B52);
     }
 
     private void openLink(String url) {
