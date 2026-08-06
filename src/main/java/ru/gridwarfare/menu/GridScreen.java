@@ -15,6 +15,7 @@ import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
@@ -72,9 +73,9 @@ public final class GridScreen extends Screen {
         ServerStatusManager.start();
 
         p = GridUi.pad(width);
-        rightColW = Math.min(280, width * 280 / 1920);
-        menuW = Math.min(440, width - p * 2 - 20);
-        if (menuW < 200) menuW = width - p * 2 - 20;
+        rightColW = GridUi.s(280);
+        menuW = GridUi.s(440);
+        if (menuW < 100) menuW = width - p * 2 - 20;
         // CSS: .menu-col { flex:1; align-items:center; } — центрируется во ВСЕЙ ширине .main-content
         // .right-col — position:absolute, НЕ влияет на flex-flow
         int contentW = width - p * 2;
@@ -84,15 +85,15 @@ public final class GridScreen extends Screen {
         var fnt = Minecraft.getInstance().font;
         float titleScale = 4.0F;
         int titleTextH = (int)(fnt.lineHeight * titleScale);  // ~48px
-        int titleBoxH = titleTextH + 10 + 12;  // CSS: padding 10px top + 12px bottom = +22px
-        int tagInnerH = 4 + fnt.lineHeight + 4;  // CSS: padding 4px, text 11px(~12px MC), = ~20px
+        int titleBoxH = titleTextH + GridUi.s(10) + GridUi.s(12);  // CSS: padding 10px top + 12px bottom = +22px
+        int tagInnerH = GridUi.s(4) + fnt.lineHeight + GridUi.s(4);  // CSS: padding 4px, text 11px(~12px MC), = ~20px
         int tagGap = -2;  // CSS: margin-top -2px (overlap!)
-        int titleGap = 48;  // CSS: .title-block margin-bottom 48px
-        int playH = 72;  // CSS: .btn-primary-lg height 72px
-        int singleH = 62;  // CSS: .btn-secondary-lg height 62px
-        int smallH = 46;  // CSS: .btn-sm height 46px
-        int bigGap = 10;  // CSS: .menu-buttons gap 10px
-        int smallRowGap = 10; // CSS: .bottom-row margin-top 10px
+        int titleGap = GridUi.s(48);  // CSS: .title-block margin-bottom 48px
+        int playH = GridUi.s(72);  // CSS: .btn-primary-lg height 72px
+        int singleH = GridUi.s(62);  // CSS: .btn-secondary-lg height 62px
+        int smallH = GridUi.s(46);  // CSS: .btn-sm height 46px
+        int bigGap = GridUi.s(10);  // CSS: .menu-buttons gap 10px
+        int smallRowGap = GridUi.s(10); // CSS: .bottom-row margin-top 10px
 
         // Total content height (centered vertically in .main-content which is below topbar)
         // CSS: .main-content starts at 60px (topbar height)
@@ -100,8 +101,8 @@ public final class GridScreen extends Screen {
         int totalH = (titleBoxH + tagInnerH - 2) + titleGap
                    + playH + bigGap + singleH + smallRowGap + smallH;
         // startY: centered in the area below the 60px topbar
-        int contentAreaH = height - 60;
-        int startY = 60 + (contentAreaH - totalH) / 2;
+        int contentAreaH = height - GridUi.s(60);
+        int startY = GridUi.s(60) + (contentAreaH - totalH) / 2;
 
         int playY   = startY + titleBoxH + tagInnerH - 2 + titleGap;
         int singleY = playY + playH + bigGap;
@@ -132,7 +133,7 @@ public final class GridScreen extends Screen {
         small.add(new MenuButton(0, rowY, 0, smallH, ICON_EXIT, "ВЫХОД", null,
                 MenuButton.Type.SMALL_EXIT, b -> minecraft.stop()));
 
-        int smallGap = 8;
+        int smallGap = GridUi.s(8);
         int sw = (menuW - (small.size() - 1) * smallGap) / small.size();
         int sx = menuX;
         for (MenuButton btn : small) {
@@ -145,10 +146,10 @@ public final class GridScreen extends Screen {
         // ═══ SOCIAL ICONS (CSS: bottom:24px, right:40px, 38×38, gap 10px) ═══
         // CSS: .social-icon { r50%; bg rgba(12,16,14,0.7); border 1px line; }
         // CSS: .social-icon svg { 18×18; fill text-muted; } hover: fill accent
-        int socialSize = 38;
-        int socialGap  = 10;
-        int socialY    = height - 24 - socialSize;
-        int socialRight = width - 40; // CSS: right: 40px
+        int socialSize = GridUi.s(38);
+        int socialGap  = GridUi.s(10);
+        int socialY    = height - GridUi.s(24) - socialSize;
+        int socialRight = width - GridUi.s(40); // CSS: right: 40px
         addRenderableWidget(new SocialIconButton(
                 socialRight - socialSize * 3 - socialGap * 2, socialY, socialSize,
                 1, b -> openLink(TG_URL)));
@@ -204,11 +205,19 @@ public final class GridScreen extends Screen {
        ═══════════════════════════ */
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
+        GridUi.S = Math.min((float)width / 1920f, (float)height / 1080f);
         GridUi.background(g, width, height);
         renderTopbar(g);
         renderTitle(g);
         renderRightColumn(g);
         renderVersion(g);
+        // ═══ DEBUG OVERLAY (remove after 1:1 is confirmed) ═══
+        var df = Minecraft.getInstance().font;
+        g.drawString(df, Component.literal("").setStyle(Style.EMPTY.withColor(0x80FFFFFF)),
+                2, 2, 0x80FFFFFF, false);
+        g.drawString(df, Component.literal("GUI: " + width + "x" + height + " S=" + String.format("%.2f", GridUi.S) + " menuW=" + menuW + " menuX=" + menuX + " p=" + p),
+                2, 12, 0x80FFFFFF, false);
+
         super.render(g, mx, my, pt);
     }
 
@@ -223,12 +232,12 @@ public final class GridScreen extends Screen {
        ═══════════════════════════ */
     private void renderTopbar(GuiGraphics g) {
         // CSS: .top-bar padding: 20px 40px → brand at (40, 20), auth card right-aligned
-        int topPad = 20;
+        int topPad = GridUi.s(20);
 
         // Brand mark 32×32 (CSS: .brand-mark width 32px height 32px)
-        GridUi.brandMark(g, p, topPad, 32);
+        GridUi.brandMark(g, p, topPad, GridUi.s(32));
         // Brand text «GRID» (CSS: gap 12px, font-size 13px, weight 700, letter-spacing 3px, uppercase)
-        drawSpaced(g, font, GridUi.styled("GRID"), p + 32 + 12, topPad + 3, 3, GridUi.TEXT_MAIN);
+        drawSpaced(g, font, GridUi.styled("GRID"), p + GridUi.s(32) + GridUi.s(12), topPad + GridUi.s(3), GridUi.s(3), GridUi.TEXT_MAIN);
 
         // Auth card (top-right)
         renderAuthCard(g);
@@ -265,10 +274,10 @@ public final class GridScreen extends Screen {
                       + (balValue.isEmpty() ? 0 : 4 + fnt.width(GridUi.styled(balValue))) + 14;
 
         int cardW = Math.max(line1W, line2W);
-        int cardH = authed ? 46 : 32;
+        int cardH = authed ? GridUi.s(46) : GridUi.s(32);
         // CSS: centered vertically in 60px topbar
         int cx = right - cardW;
-        int cy = (60 - cardH) / 2;
+        int cy = (GridUi.s(60) - cardH) / 2;
 
         // CSS: .auth-card bg-panel border:1px solid line r10
         GridUi.panel(g, cx, cy, cardW, cardH, 10);
@@ -325,7 +334,7 @@ public final class GridScreen extends Screen {
         var fnt = Minecraft.getInstance().font;
         int cx = menuX + menuW / 2;
         float titleScale = 4.0F;
-        int letterSpacing = 8; // CSS: letter-spacing 8px
+        int letterSpacing = GridUi.s(8); // CSS: letter-spacing 8px
 
         // Измеряем «GRID» по буквам для ширины бокса
         String titleText = "GRID";
@@ -338,37 +347,37 @@ public final class GridScreen extends Screen {
         }
 
         // CSS: padding 0 36px, box height = textH + 10(top) + 12(bottom)
-        int padX = 36;
+        int padX = GridUi.s(36);
         int titleTextH = (int)(fnt.lineHeight * titleScale);
-        int titleBoxH = titleTextH + 10 + 12;
+        int titleBoxH = titleTextH + GridUi.s(10) + GridUi.s(12);
         int boxW = totalTextW + padX * 2;
 
         // Пересчитаем startY (как в init)
-        int tagInnerH = 4 + fnt.lineHeight + 4;
-        int titleGap = 48;
-        int playH = 72, singleH = 62, smallH = 46;
-        int bigGap = 10, smallRowGap = 10;
+        int tagInnerH = GridUi.s(4) + fnt.lineHeight + GridUi.s(4);
+        int titleGap = GridUi.s(48);
+        int playH = GridUi.s(72), singleH = GridUi.s(62), smallH = GridUi.s(46);
+        int bigGap = GridUi.s(10), smallRowGap = GridUi.s(10);
         int totalH = (titleBoxH + tagInnerH - 2) + titleGap
                    + playH + bigGap + singleH + smallRowGap + smallH;
-        int contentAreaH = height - 60;
-        int startY = 60 + (contentAreaH - totalH) / 2;
+        int contentAreaH = height - GridUi.s(60);
+        int startY = GridUi.s(60) + (contentAreaH - totalH) / 2;
         int baseY = startY;
         int boxX = cx - boxW / 2;
 
         // CSS box-shadow: 0 9px 20px rgba(0,0,0,0.5) — размытая тень (3 слоя)
-        GridUi.roundedRect(g, boxX - 4, baseY + 13, boxW + 8, titleBoxH + 4, 12, 0x26000000);
-        GridUi.roundedRect(g, boxX - 2, baseY + 10, boxW + 4, titleBoxH + 2, 10, 0x40000000);
-        GridUi.roundedRect(g, boxX, baseY + 9, boxW, titleBoxH, 8, 0x80000000);
+        GridUi.roundedRect(g, boxX - GridUi.s(4), baseY + GridUi.s(13), boxW + GridUi.s(8), titleBoxH + GridUi.s(4), 12, 0x26000000);
+        GridUi.roundedRect(g, boxX - GridUi.s(2), baseY + GridUi.s(10), boxW + GridUi.s(4), titleBoxH + GridUi.s(2), 10, 0x40000000);
+        GridUi.roundedRect(g, boxX, baseY + GridUi.s(9), boxW, titleBoxH, 8, 0x80000000);
 
         // CSS box-shadow: 0 7px 0 accent-darker, 0 5px 0 accent-dark
-        GridUi.roundedRect(g, boxX, baseY + 7, boxW, titleBoxH, 8, GridUi.ACCENT_DARKER);
-        GridUi.roundedRect(g, boxX, baseY + 5, boxW, titleBoxH, 8, GridUi.ACCENT_DARK);
+        GridUi.roundedRect(g, boxX, baseY + GridUi.s(7), boxW, titleBoxH, 8, GridUi.ACCENT_DARKER);
+        GridUi.roundedRect(g, boxX, baseY + GridUi.s(5), boxW, titleBoxH, 8, GridUi.ACCENT_DARK);
         // Основной бокс
         GridUi.roundedRect(g, boxX, baseY, boxW, titleBoxH, 8, GridUi.ACCENT);
 
         // Текст «GRID» по буквам с letter-spacing 8px
         int charX = boxX + padX;
-        int charCY = baseY + 10 + titleTextH / 2; // 10px = CSS padding-top
+        int charCY = baseY + GridUi.s(10) + titleTextH / 2; // 10px = CSS padding-top
         for (int i = 0; i < titleText.length(); i++) {
             g.pose().pushPose();
             g.pose().translate((float) (charX + charW[i] / 2), (float) (charCY), 0.0F);
@@ -380,14 +389,14 @@ public final class GridScreen extends Screen {
 
         // CSS: .title-tag-text { 11px; 600; accent; UPPERCASE; letter-spacing 1.5px; }
         String tag = "ВОЕННО-ПОЛИТИЧЕСКИЙ СЕРВЕР";
-        int tagSpacing = 1; // ~1.5px CSS
+        int tagSpacing = GridUi.s(1); // ~1.5px CSS
         int tagTextW = spacedWidth(fnt, GridUi.styled(tag), tagSpacing);
-        int tagPadX = 16;
-        int tagPadY = 4;
+        int tagPadX = GridUi.s(16);
+        int tagPadY = GridUi.s(4);
         int tagW = tagTextW + tagPadX * 2;
         int tagH = tagInnerH;
         // CSS: margin-top -2px → overlap with title box
-        int tagY = baseY + titleBoxH - 2;
+        int tagY = baseY + titleBoxH - GridUi.s(2);
         int tagX = cx - tagW / 2;
 
         // CSS: border 1px solid accent-border, bg accent-dim, r4
@@ -411,14 +420,14 @@ public final class GridScreen extends Screen {
         int rx = width - p - rw; // CSS: right: 40px
 
         int newsCount = news == null ? 0 : Math.min(4, news.size());
-        int statusH = 100;
-        int newsH = 30 + (newsCount == 0 ? 24 : newsCount * 38);
-        int gap = 10;
+        int statusH = GridUi.s(100);
+        int newsH = GridUi.s(30) + (newsCount == 0 ? GridUi.s(24) : newsCount * GridUi.s(38));
+        int gap = GridUi.s(10);
         int total = statusH + gap + newsH;
 
         // CSS: top: 50%; transform: translateY(-50%) — центр .main-content
         // .main-content = весь экран минус topbar(60px)
-        int contentAreaH = height - 60;
+        int contentAreaH = height - GridUi.s(60);
         int ry = 60 + (contentAreaH - total) / 2;
 
         renderStatusPanel(g, rx, ry, rw, statusH);
@@ -439,7 +448,7 @@ public final class GridScreen extends Screen {
         var fnt = Minecraft.getInstance().font;
 
         // CSS: .panel-title font-size 10px, weight 600, uppercase, spacing 1.5px, margin-bottom 12px
-        drawSpaced(g, fnt, GridUi.styled("СТАТУС СЕРВЕРА"), x + 18, y + 18, 1, GridUi.TEXT_MUTED);
+        drawSpaced(g, fnt, GridUi.styled("СТАТУС СЕРВЕРА"), x + GridUi.s(18), y + GridUi.s(18), 1, GridUi.TEXT_MUTED);
 
         int state = ServerStatusManager.getState();
         boolean online = state == ServerStatusManager.ONLINE;
@@ -450,39 +459,41 @@ public final class GridScreen extends Screen {
                 state == ServerStatusManager.OFFLINE ? 0xFFE06666 : 0xFF9AA5A0;
 
         // CSS: .status-row gap 7px, margin-bottom 8px
-        int dx = x + 18;
-        int dy = y + 18 + 12 + 8; // panel-title(18) + mb(12) + some alignment
+        int dx = x + GridUi.s(18);
+        int dy = y + GridUi.s(18) + GridUi.s(12) + GridUi.s(8); // panel-title(18) + mb(12) + some alignment
         // Dot 6×6 (CSS: .status-dot width 6px height 6px border-radius 50%)
         // В MC рисуем квадрат 6×6 — на таком маленьком размере круг и квадрат неразличимы
-        g.fill(dx, dy + 1, dx + 6, dy + 7, dotColor);
+        int dotS = GridUi.s(6);
+        g.fill(dx, dy + 1, dx + dotS, dy + 1 + dotS, dotColor);
         // Label (CSS: .status-label font-size 11px, gap 7px after dot)
-        g.drawString(fnt, GridUi.styled(label), dx + 6 + 7, dy, labelColor, false);
+        g.drawString(fnt, GridUi.styled(label), dx + GridUi.s(6) + GridUi.s(7), dy, labelColor, false);
 
         if (online) {
             int value = ServerStatusManager.getOnline();
             // CSS: .status-value font-size 26px, weight 800
             String numStr = String.valueOf(value);
             int numBaseW = fnt.width(GridUi.styled(numStr));
-            int numScaledW = (int) (numBaseW * 2.0F);
+            float numScale = GridUi.S * 2.0F;
+            int numScaledW = (int) (numBaseW * numScale);
             int numY = dy + 8 + 12; // after status-row mb 8px
             g.pose().pushPose();
             g.pose().translate((float) dx, (float) numY, 0.0F);
-            g.pose().scale(2.0F, 2.0F, 1.0F);
+            g.pose().scale(numScale, numScale, 1.0F);
             g.drawString(fnt, GridUi.styled(numStr), 0, 0, GridUi.TEXT_MAIN, false);
             g.pose().popPose();
             // CSS: span { font-size 12px; margin-left 3px; }
-            g.drawString(fnt, GridUi.styled("игрока"), dx + numScaledW + 3, numY + 4, GridUi.TEXT_MUTED, false);
+            g.drawString(fnt, GridUi.styled("игрока"), dx + numScaledW + GridUi.s(3), numY + GridUi.s(4), GridUi.TEXT_MUTED, false);
 
             // CSS: .status-bar-track height 3px, margin-top 10px
-            int barY = numY + (int)(fnt.lineHeight * 2.0F) + 10;
+            int barY = numY + (int)(fnt.lineHeight * numScale) + GridUi.s(10);
             int barX = dx;
-            int barW = x + w - 18 - barX;
+            int barW = x + w - GridUi.s(18) - barX;
             if (barW > 4) {
-                g.fill(barX, barY, barX + barW, barY + 3, GridUi.LINE_COLOR);
+                g.fill(barX, barY, barX + barW, barY + GridUi.s(3), GridUi.LINE_COLOR);
                 int max = ServerStatusManager.getMax();
                 if (max > 0) {
                     int fillW = Math.max(3, (int)(barW * Math.min(1f, (float)value / max)));
-                    g.fill(barX, barY, barX + fillW, barY + 3, GridUi.ACCENT);
+                    g.fill(barX, barY, barX + fillW, barY + GridUi.s(3), GridUi.ACCENT);
                 }
             }
         } else {
@@ -503,14 +514,14 @@ public final class GridScreen extends Screen {
         var fnt = Minecraft.getInstance().font;
 
         // CSS: .panel-title
-        drawSpaced(g, fnt, GridUi.styled("НОВОСТИ"), x + 18, y + 18, 1, GridUi.TEXT_MUTED);
+        drawSpaced(g, fnt, GridUi.styled("НОВОСТИ"), x + GridUi.s(18), y + GridUi.s(18), 1, GridUi.TEXT_MUTED);
 
         if (news == null) {
-            g.drawString(fnt, GridUi.styled("Загрузка..."), x + 18, y + 38, GridUi.TEXT_DIM, false);
+            g.drawString(fnt, GridUi.styled("Загрузка..."), x + GridUi.s(18), y + GridUi.s(38), GridUi.TEXT_DIM, false);
             return;
         }
 
-        int iy = y + 18 + 12; // after panel title + margin-bottom 12px
+        int iy = y + GridUi.s(18) + GridUi.s(12); // after panel title + margin-bottom 12px
         int shown = 0;
         for (JsonElement element : news) {
             if (shown >= 4) break;
@@ -526,21 +537,21 @@ public final class GridScreen extends Screen {
             }
 
             // CSS: .news-item padding 8px 0
-            int itemY = iy + 8;
+            int itemY = iy + GridUi.s(8);
             // Дата (CSS: .news-date font-size 9px, text-dim, uppercase, ls 0.5px)
-            g.drawString(fnt, GridUi.styled(date), x + 18, itemY, GridUi.TEXT_DIM, false);
+            g.drawString(fnt, GridUi.styled(date), x + GridUi.s(18), itemY, GridUi.TEXT_DIM, false);
             // Заголовок (CSS: .news-title font-size 11px, weight 500, text, margin-top 2px)
             String clipped = fnt.plainSubstrByWidth(title, w - 36);
-            g.drawString(fnt, GridUi.styled(clipped), x + 18, itemY + 12, GridUi.TEXT_MAIN, false);
+            g.drawString(fnt, GridUi.styled(clipped), x + GridUi.s(18), itemY + GridUi.s(12), GridUi.TEXT_MAIN, false);
             // Разделитель (CSS: border-bottom 1px rgba(52,64,56,0.4))
             if (shown < 3) {
-                g.fill(x + 18, itemY + 28, x + w - 18, itemY + 29, 0x66344038);
+                g.fill(x + GridUi.s(18), itemY + GridUi.s(28), x + w - GridUi.s(18), itemY + GridUi.s(29), 0x66344038);
             }
-            iy = itemY + 30;
+            iy = itemY + GridUi.s(30);
             shown++;
         }
         if (shown == 0) {
-            g.drawString(fnt, GridUi.styled("Новостей пока нет"), x + 18, y + 38, GridUi.TEXT_DIM, false);
+            g.drawString(fnt, GridUi.styled("Новостей пока нет"), x + GridUi.s(18), y + GridUi.s(38), GridUi.TEXT_DIM, false);
         }
     }
 
@@ -550,7 +561,7 @@ public final class GridScreen extends Screen {
     private void renderVersion(GuiGraphics g) {
         // CSS: bottom 10px → baseline ~10px от нижнего края
         g.drawString(font, GridUi.styled("Minecraft 1.21.1 \u00B7 NeoForge \u00B7 GRID v0.1.0"),
-                p, height - 12, GridUi.TEXT_DIM, false);
+                p, height - GridUi.s(12), GridUi.TEXT_DIM, false);
     }
 
     /* ═══════════════════════════
@@ -629,7 +640,7 @@ public final class GridScreen extends Screen {
             int iconColor = hover ? GridUi.ACCENT : GridUi.TEXT_MUTED;
             int icx = x + s / 2;
             int icy = y + s / 2;
-            drawSocialIcon(g, iconType, icx, icy, 18, iconColor);
+            drawSocialIcon(g, iconType, icx, icy, GridUi.s(18), iconColor);
         }
 
         private static void drawSocialIcon(GuiGraphics g, int type, int cx, int cy, int size, int color) {
@@ -749,7 +760,7 @@ public final class GridScreen extends Screen {
             if (type == Type.PRIMARY) {
                 // CSS: box-shadow 0 0 20px rgba(104,194,132,0.10), hover 0 0 28px rgba(0.20)
                 int glow = hover ? 0x3368C284 : 0x1A68C284;
-                GridUi.roundedRect(g, x - 6, y - 6, w + 12, h + 12, radius + 6, glow);
+                GridUi.roundedRect(g, x - GridUi.s(6), y - GridUi.s(6), w + GridUi.s(12), h + GridUi.s(12), radius + GridUi.s(6), glow);
                 // CSS: no border on primary
                 GridUi.roundedRect(g, x, y, w, h, radius, bg);
             } else {
@@ -761,9 +772,9 @@ public final class GridScreen extends Screen {
             // Содержимое
             if (type == Type.SMALL || type == Type.SMALL_EXIT) {
                 // CSS: .btn-sm { icon 14×14; gap 8px; text 11px/500/uppercase/ls0.8px; padding 0 8px; justify-content center; }
-                int iconSize = 14;
-                int gap = 8;
-                int padding = 8;
+                int iconSize = GridUi.s(14);
+                int gap = GridUi.s(8);
+                int padding = GridUi.s(8);
                 String rawTitle = getMessage().getString();
                 int textW = fnt.width(GridUi.styled(rawTitle));
                 int total = iconSize + gap + textW;
@@ -777,10 +788,10 @@ public final class GridScreen extends Screen {
                 // CSS: .btn-primary-lg / .btn-secondary-lg
                 // padding: 0 20px; .btn-icon 36×36 margin-right 16px; svg 22×22
                 // .btn-title 15px/700/uppercase/ls 1px, .btn-desc 11px/400/mt 2px
-                int iconContainerSize = 36;
-                int iconSvgSize = 22;
-                int iconMarginRight = 16;
-                int padLeft = 20;
+                int iconContainerSize = GridUi.s(36);
+                int iconSvgSize = GridUi.s(22);
+                int iconMarginRight = GridUi.s(16);
+                int padLeft = GridUi.s(20);
 
                 // Иконка по центру контейнера 36×36
                 int iconCx = x + padLeft + iconContainerSize / 2;
@@ -792,7 +803,7 @@ public final class GridScreen extends Screen {
                 String rawTitle = getMessage().getString();
                 int titleH = fnt.lineHeight;
                 int descH = fnt.lineHeight;
-                int gap2px = 2;
+                int gap2px = GridUi.s(2);
                 int blockH = titleH + gap2px + descH;
                 int blockStartY = y + (h - blockH) / 2;
 

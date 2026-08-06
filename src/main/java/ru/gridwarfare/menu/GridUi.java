@@ -50,6 +50,11 @@ public final class GridUi {
     public static final int BTN_SM_BG         = 0xA60C100E; // rgba(12,16,14,0.65)
     public static final int BTN_SM_HOVER      = 0xCC121814; // rgba(18,24,20,0.80)
 
+    /* ═══ МАСШТАБ ═══ */
+    /** CSS-designed for 1920×1080. This scales all layout values to actual GUI resolution. */
+    public static float S = 1f;
+    public static int s(int cssPx) { return Math.max(1, (int)(cssPx * S)); }
+
     private GridUi() {}
 
     /* ═══ ШРИФТ ═══ */
