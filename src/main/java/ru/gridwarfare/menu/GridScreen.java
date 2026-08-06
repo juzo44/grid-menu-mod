@@ -15,7 +15,6 @@ import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
@@ -211,12 +210,7 @@ public final class GridScreen extends Screen {
         renderTitle(g);
         renderRightColumn(g);
         renderVersion(g);
-        // ═══ DEBUG OVERLAY (remove after 1:1 is confirmed) ═══
-        var df = Minecraft.getInstance().font;
-        g.drawString(df, Component.literal("").setStyle(Style.EMPTY.withColor(0x80FFFFFF)),
-                2, 2, 0x80FFFFFF, false);
-        g.drawString(df, Component.literal("GUI: " + width + "x" + height + " S=" + String.format("%.2f", GridUi.S) + " menuW=" + menuW + " menuX=" + menuX + " p=" + p),
-                2, 12, 0x80FFFFFF, false);
+        // debug overlay removed
 
         super.render(g, mx, my, pt);
     }
@@ -428,7 +422,7 @@ public final class GridScreen extends Screen {
         // CSS: top: 50%; transform: translateY(-50%) — центр .main-content
         // .main-content = весь экран минус topbar(60px)
         int contentAreaH = height - GridUi.s(60);
-        int ry = 60 + (contentAreaH - total) / 2;
+        int ry = GridUi.s(60) + (contentAreaH - total) / 2;
 
         renderStatusPanel(g, rx, ry, rw, statusH);
         renderNewsPanel(g, rx, ry + statusH + gap, rw, newsH);
@@ -644,49 +638,82 @@ public final class GridScreen extends Screen {
         }
 
         private static void drawSocialIcon(GuiGraphics g, int type, int cx, int cy, int size, int color) {
-            int h = size / 2;
             switch (type) {
-                case 1 -> { // Telegram: бумажный самолик
-                    int left = cx - h + 3, right = cx + h - 3;
-                    int top = cy - h + 4, bot = cy + h - 4;
-                    int midY = cy + 1;
-                    for (int row = top; row <= bot; row++) {
-                        int xEnd;
-                        if (row < midY) {
-                            int t = row - top, maxT = midY - top;
-                            xEnd = left + 2 + (right - left - 2) * t / maxT;
-                        } else {
-                            int t = row - midY, maxT = bot - midY;
-                            xEnd = left + 2 + (right - left - 2) * (1 - t / maxT);
-                        }
-                        g.fill(left, row, xEnd, row + 1, color);
-                    }
+                case 1 -> { // Telegram: бумажный самолик (упрощённый из полного SVG)
+                    // Полный SVG слишком сложный для 18px. Рисуем узнаваемый треугольник-самолик
+                    int hh = size / 2;
+                    // Треугольное тело: левый верх → левый низ → правый пик
+                    float ax = cx - hh * 0.6f, ay = cy - hh * 0.7f;
+                    float bx = cx - hh * 0.6f, by = cy + hh * 0.7f;
+                    float cxx = cx + hh * 0.9f, cyy = cy;
+                    fillTriangle(g, ax, ay, bx, by, cxx, cyy, color);
+                    // Хвостик (маленький треугольник слева снизу)
+                    float t1x = cx - hh * 0.6f, t1y = cy + hh * 0.3f;
+                    float t2x = cx - hh * 0.2f, t2y = cy + hh * 0.1f;
+                    float t3x = cx - hh * 0.6f, t3y = cy + hh * 0.7f;
+                    fillTriangle(g, t1x, t1y, t2x, t2y, t3x, t3y, color);
                 }
-                case 2 -> { // Discord: упрощённая маска
-                    int rr = h - 4;
+                case 2 -> { // Discord:简化 маска — овал шире снизу
+                    int rr = (int)(size * 0.42);
                     for (int dy = -rr; dy <= rr; dy++) {
-                        for (int dx = -rr; dx <= rr; dx++) {
-                            if (dx * dx * 10 + dy * dy * 16 <= rr * rr * 10) {
-                                boolean eye = (dx >= -4 && dx <= -1 && dy >= -2 && dy <= 0)
-                                        || (dx >= 1 && dx <= 4 && dy >= -2 && dy <= 0);
-                                if (!eye)
-                                    g.fill(cx + dx, cy + dy, cx + dx + 1, cy + dy + 1, color);
-                            }
-                        }
+                        float xScale = 1f + 0.18f * Math.max(0, (float)dy / rr);
+                        int hw = (int)(rr * xScale);
+                        g.fill(cx - hw, cy + dy, cx + hw, cy + dy + 1, color);
                     }
                 }
-                case 3 -> { // Globe: круг + меридиан + экватор
-                    int rr = h - 4;
+                case 3 -> { // Globe: обводка круга + меридиан + экватор
+                    int rr = (int)(size * 0.38);
+                    // Обводка круга (толщина ~1.5px, рисуем внешнюю и вычитаем внутреннюю)
                     for (int dy = -rr; dy <= rr; dy++) {
-                        int w = (int) Math.sqrt(Math.max(0, rr * rr - dy * dy));
-                        if (w > 0) {
-                            g.fill(cx - w, cy + dy, cx - w + 1, cy + dy + 1, color);
-                            g.fill(cx + w, cy + dy, cx + w + 1, cy + dy + 1, color);
+                        int hw = (int) Math.sqrt(Math.max(0, rr * rr - dy * dy));
+                        int inner = rr - Math.max(1, (int)(size * 0.07));
+                        int ihw = dy >= -inner && dy <= inner
+                                ? (int) Math.sqrt(Math.max(0, inner * inner - dy * dy)) : 0;
+                        int left = cx - hw, right = cx + hw;
+                        if (ihw > 0) { left = cx - ihw + 1; right = cx + ihw - 1; }
+                        if (right > left) {
+                            if (cx - hw < left) g.fill(cx - hw, cy + dy, left, cy + dy + 1, color);
+                            if (right < cx + hw) g.fill(right, cy + dy, cx + hw, cy + dy + 1, color);
+                        } else if (hw > 0) {
+                            g.fill(cx - hw, cy + dy, cx + hw, cy + dy + 1, color);
                         }
                     }
-                    g.fill(cx - rr, cy, cx + rr, cy + 1, color);
-                    g.fill(cx, cy - rr, cx + 1, cy + rr, color);
+                    // Вертикальный меридиан
+                    int lt = Math.max(1, (int)(size * 0.06));
+                    g.fill(cx - lt/2, cy - rr, cx + lt/2 + 1, cy + rr, color);
+                    // Горизонтальная линия (экватор)
+                    g.fill(cx - rr, cy - lt/2, cx + rr, cy + lt/2 + 1, color);
                 }
+            }
+        }
+
+        /** Заполняет треугольник (scanline). */
+        private static void fillTriangle(GuiGraphics g, float x0, float y0, float x1, float y1, float x2, float y2, int color) {
+            int topY = (int) Math.min(y0, Math.min(y1, y2));
+            int botY = (int) Math.max(y0, Math.max(y1, y2));
+            for (int row = topY; row <= botY; row++) {
+                float y = row + 0.5f;
+                float minX = x0, maxX = x0;
+                // Edge 0→1
+                if ((y0 <= y && y1 > y) || (y1 <= y && y0 > y)) {
+                    float t = (y - y0) / (y1 - y0);
+                    float x = x0 + t * (x1 - x0);
+                    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+                }
+                // Edge 1→2
+                if ((y1 <= y && y2 > y) || (y2 <= y && y1 > y)) {
+                    float t = (y - y1) / (y2 - y1);
+                    float x = x1 + t * (x2 - x1);
+                    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+                }
+                // Edge 2→0
+                if ((y2 <= y && y0 > y) || (y0 <= y && y2 > y)) {
+                    float t = (y - y2) / (y0 - y2);
+                    float x = x2 + t * (x0 - x2);
+                    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+                }
+                int lx = (int) minX, rx = (int) maxX;
+                if (rx > lx) g.fill(lx, row, rx, row + 1, color);
             }
         }
     }
@@ -776,7 +803,8 @@ public final class GridScreen extends Screen {
                 int gap = GridUi.s(8);
                 int padding = GridUi.s(8);
                 String rawTitle = getMessage().getString();
-                int textW = fnt.width(GridUi.styled(rawTitle));
+                int ls = 1; // CSS: letter-spacing 0.8px → 1px
+                int textW = spacedWidth(fnt, GridUi.styled(rawTitle), ls);
                 int total = iconSize + gap + textW;
                 int start = x + (w - total) / 2;
                 int iconCx = start + iconSize / 2;

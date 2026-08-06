@@ -126,7 +126,7 @@ public final class GridUi {
         var fnt = Minecraft.getInstance().font;
         g.pose().pushPose();
         g.pose().translate((float) (x + size / 2), (float) (y + size / 2), 0.0F);
-        float s = 1.4F;
+        float s = 17f / 9f; // CSS: font-size 17px, MC font ~9px → scale ~1.89
         g.pose().scale(s, s, 1.0F);
         g.drawCenteredString(fnt, styled("G"), 0, -4, BG_DEEP);
         g.pose().popPose();
