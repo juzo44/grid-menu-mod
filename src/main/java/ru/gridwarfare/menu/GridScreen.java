@@ -212,8 +212,8 @@ public final class GridScreen extends Screen {
 
         // Brand mark 32×32 (CSS: .brand-mark width 32px height 32px)
         GridUi.brandMark(g, p, topPad, 32);
-        // Brand text «GRID» (CSS: gap 12px, font-size 13px, weight 700, spacing 3px)
-        g.drawString(font, GridUi.styled("GRID"), p + 32 + 12, topPad + 3, GridUi.TEXT_MAIN, false);
+        // Brand text «GRID» (CSS: gap 12px, font-size 13px, weight 700, letter-spacing 3px)
+        drawSpaced(g, font, GridUi.styled("GRID"), p + 32 + 12, topPad + 3, 3, GridUi.TEXT_MAIN);
 
         // Auth card (top-right)
         renderAuthCard(g, topPad);
@@ -286,63 +286,73 @@ public final class GridScreen extends Screen {
 
     /* ═══════════════════════════
        3D ЗАГОЛОВОК «GRID» + ТЕГ
-       CSS: .title-main padding 10px 36px 12px, font-size 52px, weight 900, spacing 8px
+       CSS: .title-main padding 10px 36px 12px, font-size 52px, weight 900, letter-spacing 8px
              box-shadow: 0 5px 0 dark, 0 7px 0 darker, 0 9px 20px rgba(0,0,0,0.5)
-             .title-tag padding 4px 16px, margin-top -2px, radius 4px
+             .title-tag padding 4px 16px, border-radius 4px
        ═══════════════════════════ */
     private void renderTitle(GuiGraphics g) {
         var fnt = Minecraft.getInstance().font;
         int cx = menuX + menuW / 2;
+        float titleScale = 4.0F;
+        int letterSpacing = 8; // CSS: letter-spacing 8px
 
-        // Пересчитаем startY как в init() для консистентности
+        // Измеряем каждый символ «GRID» при масштабе для расчёта ширины бокса
+        String titleText = "GRID";
+        int[] charW = new int[titleText.length()];
+        int totalTextW = 0;
+        for (int i = 0; i < titleText.length(); i++) {
+            charW[i] = (int) (fnt.width(GridUi.styled(String.valueOf(titleText.charAt(i)))) * titleScale);
+            totalTextW += charW[i];
+            if (i > 0) totalTextW += letterSpacing;
+        }
+
+        int padX = 36; // CSS: padding 0 36px
+        int boxW = totalTextW + padX * 2;
         int titleBoxH = 66;
-        int tagH = 13;
-        int tagGap = 4;
-        int titleGap = 48;
-        int playH = 72;
-        int singleH = 62;
-        int smallH = 46;
-        int bigGap = 10;
-        int smallRowGap = 10;
 
+        // Пересчитаем startY (как в init)
+        int tagH = 13, tagGap = 4, titleGap = 48, playH = 72, singleH = 62, smallH = 46;
+        int bigGap = 10, smallRowGap = 10;
         int totalH = titleBoxH + tagGap + tagH + titleGap
                    + playH + bigGap + singleH + smallRowGap + smallH;
         int startY = (height - totalH) / 2;
-
-        int boxW = menuW; // ширина заголовка = ширине кнопок
         int baseY = startY;
+        int boxX = cx - boxW / 2;
 
-        // 3D тени (darker → dark → main) — смещение по Y как в CSS box-shadow
-        GridUi.roundedRect(g, cx - boxW/2, baseY + 9, boxW, titleBoxH, 8, 0x80000000);
-        GridUi.roundedRect(g, cx - boxW/2, baseY + 7, boxW, titleBoxH, 8, GridUi.ACCENT_DARKER);
-        GridUi.roundedRect(g, cx - boxW/2, baseY + 5, boxW, titleBoxH, 8, GridUi.ACCENT_DARK);
-        GridUi.roundedRect(g, cx - boxW/2, baseY,     boxW, titleBoxH, 8, GridUi.ACCENT);
+        // 3D тени — CSS box-shadow: 0 5px 0 dark, 0 7px 0 darker, 0 9px 20px rgba(0,0,0,0.5)
+        GridUi.roundedRect(g, boxX, baseY + 9, boxW, titleBoxH, 8, 0x80000000);
+        GridUi.roundedRect(g, boxX, baseY + 7, boxW, titleBoxH, 8, GridUi.ACCENT_DARKER);
+        GridUi.roundedRect(g, boxX, baseY + 5, boxW, titleBoxH, 8, GridUi.ACCENT_DARK);
+        GridUi.roundedRect(g, boxX, baseY,     boxW, titleBoxH, 8, GridUi.ACCENT);
 
-        // Текст «GRID» (CSS 52px → MC scale 4.0x от ~12px base)
-        g.pose().pushPose();
-        g.pose().translate(cx, baseY + titleBoxH / 2, 0.0F);
-        g.pose().scale(4.0F, 4.0F, 1.0F);
-        g.drawCenteredString(fnt, GridUi.styled("GRID"), 0, -4, GridUi.BG_DEEP);
-        g.pose().popPose();
+        // Рисуем «GRID» по буквам с letter-spacing 8px (CSS: letter-spacing 8px)
+        int charX = boxX + padX;
+        int charCY = baseY + titleBoxH / 2;
+        for (int i = 0; i < titleText.length(); i++) {
+            g.pose().pushPose();
+            g.pose().translate(charX + charW[i] / 2, charCY, 0.0F);
+            g.pose().scale(titleScale, titleScale, 1.0F);
+            g.drawCenteredString(fnt, GridUi.styled(String.valueOf(titleText.charAt(i))), 0, -4, GridUi.BG_DEEP);
+            g.pose().popPose();
+            charX += charW[i] + letterSpacing;
+        }
 
-        // Тег «Военно-политический сервер» (CSS: .title-tag)
+        // Тег «Военно-политический сервер» (CSS: .title-tag padding 4px 16px, border-radius 4px, letter-spacing 1.5px)
         String tag = "Военно-политический сервер";
-        int tw = fnt.width(GridUi.styled(tag));
-        int tagPadX = 16; // CSS: padding 4px 16px
-        int tagPadY = 4;  // CSS: padding-top/bottom 4px
+        int tagSpacing = 1; // ~1.5px округлённо
+        int tagTextW = spacedWidth(fnt, GridUi.styled(tag), tagSpacing);
+        int tagPadX = 16, tagPadY = 4;
+        int tagInnerH = tagPadY * 2 + 8;
         int tagY = baseY + titleBoxH + tagGap;
-        int tagX = cx - tw / 2 - tagPadX;
-        int tagW = tw + tagPadX * 2;
-        int tagInnerH = tagPadY * 2 + 8; // 4+4+~8px text
+        int tagW = tagTextW + tagPadX * 2;
+        int tagX = cx - tagW / 2;
 
-        // Фон + полный бордер (1px все 4 стороны)
-        g.fill(tagX, tagY, tagX + tagW, tagY + tagInnerH, GridUi.ACCENT_DIM);
-        g.fill(tagX, tagY, tagX + tagW, tagY + 1, GridUi.ACCENT_BORDER);
-        g.fill(tagX, tagY + tagInnerH - 1, tagX + tagW, tagY + tagInnerH, GridUi.ACCENT_BORDER);
-        g.fill(tagX, tagY, tagX + 1, tagY + tagInnerH, GridUi.ACCENT_BORDER);
-        g.fill(tagX + tagW - 1, tagY, tagX + tagW, tagY + tagInnerH, GridUi.ACCENT_BORDER);
+        // Скруглённый фон + бордер (CSS: border-radius 4px)
+        GridUi.roundedRect(g, tagX, tagY, tagW, tagInnerH, 4, GridUi.ACCENT_BORDER);
+        GridUi.roundedRect(g, tagX + 1, tagY + 1, tagW - 2, tagInnerH - 2, 3, GridUi.ACCENT_DIM);
 
-        g.drawString(fnt, GridUi.styled(tag), cx - tw / 2, tagY + tagPadY, GridUi.ACCENT, false);
+        // Текст тега с letter-spacing (по центру)
+        drawSpaced(g, fnt, GridUi.styled(tag), tagX + tagPadX + (tagW - tagPadX * 2 - tagTextW) / 2, tagY + tagPadY, tagSpacing, GridUi.ACCENT);
     }
 
     /* ═══════════════════════════
@@ -390,13 +400,16 @@ public final class GridScreen extends Screen {
         if (online) {
             int value = ServerStatusManager.getOnline();
             // Число 26px (CSS: .status-value font-size 26px, weight 800)
+            String numStr = String.valueOf(value);
+            int numBaseW = fnt.width(GridUi.styled(numStr));
+            int numScaledW = (int) (numBaseW * 2.0F);
             g.pose().pushPose();
             g.pose().translate(dx, dy + 20, 0.0F);
             g.pose().scale(2.0F, 2.0F, 1.0F);
-            g.drawString(fnt, GridUi.styled(String.valueOf(value)), 0, 0, GridUi.TEXT_MAIN, false);
+            g.drawString(fnt, GridUi.styled(numStr), 0, 0, GridUi.TEXT_MAIN, false);
             g.pose().popPose();
-            // «игрока» (CSS: span font-size 12px, margin-left 3px)
-            g.drawString(fnt, GridUi.styled("игрока"), dx + 18, dy + 24, GridUi.TEXT_MUTED, false);
+            // «игрока» (CSS: span font-size 12px, margin-left 3px — сразу после числа)
+            g.drawString(fnt, GridUi.styled("игрока"), dx + numScaledW + 3, dy + 24, GridUi.TEXT_MUTED, false);
 
             // Прогресс-бар (CSS: .status-bar-track height 3px, margin-top 10px)
             int barY = dy + 40;
@@ -461,6 +474,32 @@ public final class GridScreen extends Screen {
     private void renderVersion(GuiGraphics g) {
         g.drawString(font, GridUi.styled("Minecraft 1.21.1 \u00B7 NeoForge \u00B7 GRID v0.1.0"),
                 p, height - 10, GridUi.TEXT_DIM, false);
+    }
+
+    /* ═══════════════════════════
+       LETTER-SPACING УТИЛИТЫ
+       ═══════════════════════════ */
+    /** Рисует текст с ручным letter-spacing (MC не поддерживает нативно). */
+    private static void drawSpaced(GuiGraphics g, net.minecraft.client.gui.Font fnt,
+                                   Component text, int x, int y, int spacing, int color) {
+        String str = text.getString();
+        for (int i = 0; i < str.length(); i++) {
+            if (i > 0) x += spacing;
+            g.drawString(fnt, Component.literal(String.valueOf(str.charAt(i))).setStyle(text.getStyle()),
+                    x, y, color, false);
+            x += fnt.width(Component.literal(String.valueOf(str.charAt(i))).setStyle(text.getStyle()));
+        }
+    }
+
+    /** Считает ширину текста с letter-spacing. */
+    private static int spacedWidth(net.minecraft.client.gui.Font fnt, Component text, int spacing) {
+        String str = text.getString();
+        int w = 0;
+        for (int i = 0; i < str.length(); i++) {
+            if (i > 0) w += spacing;
+            w += fnt.width(Component.literal(String.valueOf(str.charAt(i))).setStyle(text.getStyle()));
+        }
+        return w;
     }
 
     /* ═══════════════════════════
