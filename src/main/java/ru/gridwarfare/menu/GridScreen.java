@@ -45,7 +45,6 @@ public final class GridScreen extends Screen {
         super(Component.literal("GRID"));
     }
 
-    /** Отступ от краёв, масштабируемый. */
     private static int pad() {
         return Math.max(24, Math.min(120, (int) (Minecraft.getInstance().getWindow().getGuiScaledWidth() * 0.08)));
     }
@@ -54,51 +53,60 @@ public final class GridScreen extends Screen {
     protected void init() {
         ServerStatusManager.start();
         int p = pad();
-        int menuW = Math.min(440, width * 30 / 100);
 
-        // Кнопки располагаются по центру (смещены чуть влево от центра экрана)
-        // чтобы правая колонка с панелями помещалась справа
+        // ── Layout: центр меню смещён влево, правая колонка занимает 280px справа ──
         int rightColW = Math.min(280, width * 21 / 100);
-        int availW = width - p * 2 - rightColW - 20;
-        int menuX = p + (availW - menuW) / 2;
+        int menuW = Math.min(440, (width - p * 2 - rightColW - 40) * 45 / 100);
+        int menuX = p + (width - p * 2 - rightColW - 40 - menuW) / 2;
 
-        // Title block над кнопками
-        int titleBlockH = 110;
-        int centerY = height / 2;
-        int contentTop = centerY - titleBlockH / 2 - 72 - 20; // titleH/2 + buttonH/2 + tag + gap
-        int playY = contentTop + titleBlockH;
+        // ── Title (3D блок + тег) ──
+        int titleBoxH = 56;
+        int tagH = 16;
+        int titleGap = 48; // gap между тегом и кнопкой ИГРАТЬ (из макета)
 
-        // Primary: ИГРАТЬ (72px высота)
-        addRenderableWidget(new MenuButton(menuX, playY, menuW, 72, ICON_PLAY, "ИГРАТЬ", "Подключение к серверу",
+        // ── Кнопки ──
+        int playH = 72;
+        int singleH = 62;
+        int smallH = 46;
+        int bigGap = 10;
+        int smallGap = 8;
+
+        // Считаем общую высоту контента
+        int totalContentH = titleBoxH + 8 + tagH + titleGap + playH + bigGap + singleH + bigGap + smallH;
+        int startY = (height - totalContentH) / 2;
+
+        int playY = startY + titleBoxH + 8 + tagH + titleGap;
+        int singleY = playY + playH + bigGap;
+        int rowY = singleY + singleH + bigGap;
+
+        // Primary: ИГРАТЬ
+        addRenderableWidget(new MenuButton(menuX, playY, menuW, playH, ICON_PLAY, "ИГРАТЬ", "Подключение к серверу",
                 MenuButton.Type.PRIMARY, b -> connectToServer()));
 
-        // Secondary: ОДИНОЧНЫЙ МИР (62px)
-        int singleY = playY + 72 + 10;
-        addRenderableWidget(new MenuButton(menuX, singleY, menuW, 62, ICON_CHECK, "ОДИНОЧНЫЙ МИР", "Одиночная игра",
+        // Secondary: ОДИНОЧНЫЙ МИР
+        addRenderableWidget(new MenuButton(menuX, singleY, menuW, singleH, ICON_CHECK, "ОДИНОЧНЫЙ МИР", "Одиночная игра",
                 MenuButton.Type.SECONDARY, b -> minecraft.setScreen(new SelectWorldScreen(this))));
 
-        // Bottom row: 4 мелкие кнопки (46px, 10px border-radius)
+        // Bottom row: мелкие кнопки
         List<MenuButton> small = new ArrayList<>();
-        int rowY = singleY + 62 + 10;
-        small.add(new MenuButton(0, rowY, 0, 46, ICON_SLIDERS, "НАСТРОЙКИ", null,
+        small.add(new MenuButton(0, rowY, 0, smallH, ICON_SLIDERS, "НАСТРОЙКИ", null,
                 MenuButton.Type.SMALL, b -> minecraft.setScreen(new OptionsScreen(this, minecraft.options))));
-        small.add(new MenuButton(0, rowY, 0, 46, ICON_INFO, "О СЕРВЕРЕ", null,
+        small.add(new MenuButton(0, rowY, 0, smallH, ICON_INFO, "О СЕРВЕРЕ", null,
                 MenuButton.Type.SMALL, b -> minecraft.setScreen(new ServerInfoScreen(this))));
         if (isShopAvailable()) {
-            small.add(new MenuButton(0, rowY, 0, 46, ICON_BAG, "МАГАЗИН", null,
+            small.add(new MenuButton(0, rowY, 0, smallH, ICON_BAG, "МАГАЗИН", null,
                     MenuButton.Type.SMALL, b -> openShop()));
         }
-        small.add(new MenuButton(0, rowY, 0, 46, ICON_EXIT, "ВЫХОД", null,
+        small.add(new MenuButton(0, rowY, 0, smallH, ICON_EXIT, "ВЫХОД", null,
                 MenuButton.Type.SMALL_EXIT, b -> minecraft.stop()));
 
-        int gap = 8;
-        int sw = (menuW - (small.size() - 1) * gap) / small.size();
+        int sw = (menuW - (small.size() - 1) * smallGap) / small.size();
         int sx = menuX;
         for (MenuButton button : small) {
             button.setX(sx);
             button.setWidth(sw);
             addRenderableWidget(button);
-            sx += sw + gap;
+            sx += sw + smallGap;
         }
 
         // Соцсети (правый нижний угол)
@@ -124,9 +132,7 @@ public final class GridScreen extends Screen {
     }
 
     @Override
-    public void removed() {
-        ServerStatusManager.stop();
-    }
+    public void removed() { ServerStatusManager.stop(); }
 
     /* ── API ── */
     private void loadAuth() {
@@ -141,18 +147,13 @@ public final class GridScreen extends Screen {
         newsFetchedAt = Util.getMillis();
         new Thread(() -> {
             JsonArray result = GridApiClient.news();
-            Minecraft.getInstance().execute(() -> {
-                news = result;
-                newsFetchedAt = Util.getMillis();
-            });
+            Minecraft.getInstance().execute(() -> { news = result; newsFetchedAt = Util.getMillis(); });
         }, "GRID-menu-news").start();
     }
 
     private static boolean isShopAvailable() {
-        try {
-            Class.forName("ru.gridwarfare.shop.GridShopScreen");
-            return true;
-        } catch (Throwable e) { return false; }
+        try { Class.forName("ru.gridwarfare.shop.GridShopScreen"); return true; }
+        catch (Throwable e) { return false; }
     }
 
     private void openShop() {
@@ -160,9 +161,7 @@ public final class GridScreen extends Screen {
             Class<?> cls = Class.forName("ru.gridwarfare.shop.GridShopScreen");
             Object inst = cls.getDeclaredConstructor().newInstance();
             if (inst instanceof Screen s) minecraft.setScreen(s);
-        } catch (Throwable e) {
-            minecraft.setScreen(new ServerInfoScreen(this));
-        }
+        } catch (Throwable e) { minecraft.setScreen(new ServerInfoScreen(this)); }
     }
 
     /* ════════════════════════════
@@ -178,14 +177,17 @@ public final class GridScreen extends Screen {
         super.render(g, mx, my, pt);
     }
 
-    /* ── TOP BAR ── */
+    /* ── TOP BAR (height ~60px, padding 20px) ── */
     private void renderTopbar(GuiGraphics g) {
         int p = pad();
-        // Brand mark (32x32, 5px clipped corners)
-        GridUi.brandMark(g, p, 14, 32);
-        // Brand text "GRID"
-        g.drawString(font, GridUi.styled("GRID"), p + 44, 17, GridUi.TEXT_MAIN, false);
-        // Auth card (правый верхний угол)
+        int topPad = Math.max(20, p / 2);
+
+        // Brand mark 32x32
+        GridUi.brandMark(g, p, topPad, 32);
+        // Brand text «GRID» — на 12px правее иконки (gap 12px из макета)
+        g.drawString(font, GridUi.styled("GRID"), p + 32 + 12, topPad + 3, GridUi.TEXT_MAIN, false);
+
+        // Auth card
         renderAuthCard(g);
     }
 
@@ -211,13 +213,13 @@ public final class GridScreen extends Screen {
         int line2 = 14 + font.width(GridUi.styled(balLabel)) + (balValue.isEmpty() ? 0 : 4 + font.width(GridUi.styled(balValue))) + 14;
 
         int cardW = Math.max(line1, line2);
-        int cardH = authed ? 44 : 32;
+        int cardH = authed ? 46 : 34;
         int cx = right - cardW;
         int cy = (60 - cardH) / 2 + 4;
         GridUi.panel(g, cx, cy, cardW, cardH, 10);
 
         int tx = cx + 14;
-        int ty = cy + 11;
+        int ty = cy + (authed ? 12 : 10);
         g.drawString(font, GridUi.styled(nick), tx, ty, GridUi.TEXT_MAIN, false);
         if (!rank.isEmpty()) {
             g.fill(tx + nickW + 7, ty - 1, tx + nickW + 7 + rankW + 10, ty + 9, GridUi.ACCENT_DIM);
@@ -248,38 +250,45 @@ public final class GridScreen extends Screen {
     private void renderTitle(GuiGraphics g) {
         int p = pad();
         int rightColW = Math.min(280, width * 21 / 100);
-        int menuW = Math.min(440, width * 30 / 100);
-        int availW = width - p * 2 - rightColW - 20;
-        int menuX = p + (availW - menuW) / 2;
+        int menuW = Math.min(440, (width - p * 2 - rightColW - 40) * 45 / 100);
+        int menuX = p + (width - p * 2 - rightColW - 40 - menuW) / 2;
         int cx = menuX + menuW / 2;
 
         int boxW = Math.min(280, menuW);
-        int boxH = 54;
-        int baseY = height / 2 - boxH / 2 - 72 - 16; // над кнопками
+        int boxH = 56;
+        // Позиция: над кнопками, по центру menuCol
+        int playH = 72;
+        int tagH = 16;
+        int titleGap = 48;
+        int totalContentH = boxH + 8 + tagH + titleGap + playH + 62 + 10 + 46;
+        int startY = (height - totalContentH) / 2;
+        int baseY = startY;
 
-        // 3D блок-тень: darker → dark → main
+        // 3D: darker → dark → main
         GridUi.roundedRect(g, cx - boxW / 2, baseY + 7, boxW, boxH, 8, GridUi.ACCENT_DARKER);
         GridUi.roundedRect(g, cx - boxW / 2, baseY + 4, boxW, boxH, 8, GridUi.ACCENT_DARK);
         GridUi.roundedRect(g, cx - boxW / 2, baseY, boxW, boxH, 8, GridUi.ACCENT);
 
-        // Текст «GRID»
+        // Текст «GRID» (масштаб 2.8x)
         g.pose().pushPose();
         g.pose().translate(cx, baseY + boxH / 2, 0.0F);
         g.pose().scale(2.8F, 2.8F, 1.0F);
         g.drawCenteredString(font, GridUi.styled("GRID"), 0, -4, GridUi.BG_DEEP);
         g.pose().popPose();
 
-        // Тег «Военно-политический сервер»
+        // Тег
         String tag = "Военно-политический сервер";
         int tw = font.width(GridUi.styled(tag));
-        int ty = baseY + boxH + 4;
-        int tagX = cx - tw / 2 - 16;
-        int tagW = tw + 32;
-        g.fill(tagX, ty - 2, tagX + tagW, ty + 9, GridUi.ACCENT_DIM);
-        // border top & bottom
-        g.fill(tagX, ty - 2, tagX + tagW, ty - 1, GridUi.ACCENT_BORDER);
-        g.fill(tagX, ty + 9, tagX + tagW, ty + 10, GridUi.ACCENT_BORDER);
-        g.drawString(font, GridUi.styled(tag), cx - tw / 2, ty, GridUi.ACCENT, false);
+        int tagY = baseY + boxH + 4;
+        int tagPadX = 16;
+        int tagX = cx - tw / 2 - tagPadX;
+        int tagW = tw + tagPadX * 2;
+        // Фон + бордер
+        g.fill(tagX, tagY - 2, tagX + tagW, tagY + 11, GridUi.ACCENT_DIM);
+        g.fill(tagX, tagY - 2, tagX + tagW, tagY - 1, GridUi.ACCENT_BORDER);
+        g.fill(tagX, tagY + 11, tagX + tagW, tagY + 12, GridUi.ACCENT_BORDER);
+        // Текст
+        g.drawString(font, GridUi.styled(tag), cx - tw / 2, tagY, GridUi.ACCENT, false);
     }
 
     /* ── ПРАВАЯ КОЛОНКА ── */
@@ -375,18 +384,11 @@ public final class GridScreen extends Screen {
         try {
             ServerData data = new ServerData("GRID", MAIN_IP, ServerData.Type.OTHER);
             ConnectScreen.startConnecting(this, minecraft, ServerAddress.parseString(MAIN_IP), data, false, null);
-        } catch (Throwable e) {
-            minecraft.setScreen(new TitleScreen());
-        }
+        } catch (Throwable e) { minecraft.setScreen(new TitleScreen()); }
     }
 
     private void openLink(String url) {
-        try { Util.getPlatform().openUri(url); } catch (Throwable e) { /* ignore */ }
-    }
-
-    /* ── Утилиты ── */
-    private static void roundedFill(GuiGraphics g, int x, int y, int w, int h, int radius, int color) {
-        GridUi.roundedRect(g, x, y, w, h, radius, color);
+        try { Util.getPlatform().openUri(url); } catch (Throwable e) {}
     }
 
     @Override
@@ -396,7 +398,7 @@ public final class GridScreen extends Screen {
     public boolean isPauseScreen() { return false; }
 
     /* ════════════════════════════
-       СОЦИАЛЬНАЯ КНОПКА (круглая)
+       СОЦИАЛЬНАЯ КНОПКА
        ════════════════════════════ */
     private static final class SocialIconButton extends Button {
         private final ResourceLocation normal;
@@ -411,8 +413,7 @@ public final class GridScreen extends Screen {
         @Override
         protected void renderWidget(GuiGraphics g, int mx, int my, float pt) {
             boolean hover = isHovered() && active;
-            int x = getX(), y = getY(), s = width;
-            g.blit(hover ? hovered : normal, x, y, 0.0F, 0.0F, s, s, s, s);
+            g.blit(hover ? hovered : normal, getX(), getY(), 0.0F, 0.0F, width, height, width, height);
         }
     }
 
@@ -462,7 +463,7 @@ public final class GridScreen extends Screen {
                     sub = GridUi.TEXT_MUTED;
                     iconColor = hover ? 0xFFE05555 : GridUi.TEXT_MUTED;
                 }
-                default -> { // SMALL
+                default -> {
                     bg = hover ? 0xCC121814 : 0xA60C100E;
                     line = hover ? 0x4068C284 : GridUi.LINE_COLOR;
                     text = hover ? GridUi.TEXT_MAIN : GridUi.TEXT_MUTED;
@@ -471,28 +472,26 @@ public final class GridScreen extends Screen {
                 }
             }
 
-            int radius = switch (type) {
-                case PRIMARY -> 12;
-                case SECONDARY -> 10;
-                default -> 10;
-            };
+            int radius = switch (type) { case PRIMARY -> 12; default -> 10; };
 
+            // Border
             GridUi.roundedRect(g, x, y, w, h, radius, line);
+            // Background (inset 1px)
             GridUi.roundedRect(g, x + 1, y + 1, w - 2, h - 2, Math.max(1, radius - 1), bg);
 
             if (type == Type.SMALL || type == Type.SMALL_EXIT) {
+                // Иконка + текст по центру
                 int iconSize = 14;
-                String title = getMessage().getString();
                 int textW = fnt.width(getMessage());
                 int total = iconSize + 8 + textW;
                 int start = x + (w - total) / 2;
                 drawIcon(g, icon, start + iconSize / 2, y + h / 2, iconSize, iconColor);
                 g.drawString(fnt, getMessage(), start + iconSize + 8, y + (h - 8) / 2, text, false);
             } else {
-                int pd = Math.max(16, w * 5 / 100);
+                // Иконка слева + заголовок + описание
+                int pd = 20;
                 int iconSize = 22;
-                int iconY = y + h / 2;
-                drawIcon(g, icon, x + pd + iconSize / 2, iconY, iconSize, iconColor);
+                drawIcon(g, icon, x + pd + iconSize / 2, y + h / 2, iconSize, iconColor);
                 int textX = x + pd + iconSize + 16;
                 g.drawString(fnt, getMessage(), textX, y + h / 2 - 9, text, false);
                 if (desc != null) {
