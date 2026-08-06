@@ -71,6 +71,7 @@ public final class GridScreen extends Screen {
     protected void init() {
         ServerStatusManager.start();
 
+        GridUi.S = Math.min((float)width / 1920f, (float)height / 1080f);
         p = GridUi.pad(width);
         rightColW = GridUi.s(280);
         menuW = GridUi.s(440);
@@ -82,7 +83,7 @@ public final class GridScreen extends Screen {
 
         // CSS heights & gaps (exact from mockup)
         var fnt = Minecraft.getInstance().font;
-        float titleScale = 4.0F;
+        float titleScale = (52f / 9f) * GridUi.S; // CSS: 52px font, MC ~9px baseline, scales with resolution
         int titleTextH = (int)(fnt.lineHeight * titleScale);  // ~48px
         int titleBoxH = titleTextH + GridUi.s(10) + GridUi.s(12);  // CSS: padding 10px top + 12px bottom = +22px
         int tagInnerH = GridUi.s(4) + fnt.lineHeight + GridUi.s(4);  // CSS: padding 4px, text 11px(~12px MC), = ~20px
@@ -327,7 +328,7 @@ public final class GridScreen extends Screen {
     private void renderTitle(GuiGraphics g) {
         var fnt = Minecraft.getInstance().font;
         int cx = menuX + menuW / 2;
-        float titleScale = 4.0F;
+        float titleScale = (52f / 9f) * GridUi.S; // CSS: 52px font, MC ~9px baseline, scales with resolution
         int letterSpacing = GridUi.s(8); // CSS: letter-spacing 8px
 
         // Измеряем «GRID» по буквам для ширины бокса
@@ -610,7 +611,7 @@ public final class GridScreen extends Screen {
     }
 
     /* ═══════════════════════════
-       СОЦ. КНОПКА (векторная, 38×38, монохромная)
+       СОЦ. КНОПКА (текстурная, 38×38, монохромная)
        CSS: .social-icon { 38×38; r50%; bg rgba(12,16,14,0.7); border 1px line; }
             .social-icon svg { 18×18; fill text-muted; } hover: fill accent
        ═══════════════════════════ */
@@ -631,94 +632,24 @@ public final class GridScreen extends Screen {
             int border = hover ? GridUi.ACCENT_BORDER : GridUi.LINE_COLOR;
             GridUi.roundedRect(g, x, y, s, s, r, border);
             GridUi.roundedRect(g, x + 1, y + 1, s - 2, s - 2, Math.max(1, r - 1), bg);
-            int iconColor = hover ? GridUi.ACCENT : GridUi.TEXT_MUTED;
-            int icx = x + s / 2;
-            int icy = y + s / 2;
-            drawSocialIcon(g, iconType, icx, icy, GridUi.s(18), iconColor);
-        }
 
-        private static void drawSocialIcon(GuiGraphics g, int type, int cx, int cy, int size, int color) {
-            switch (type) {
-                case 1 -> { // Telegram: бумажный самолик (упрощённый из полного SVG)
-                    // Полный SVG слишком сложный для 18px. Рисуем узнаваемый треугольник-самолик
-                    int hh = size / 2;
-                    // Треугольное тело: левый верх → левый низ → правый пик
-                    float ax = cx - hh * 0.6f, ay = cy - hh * 0.7f;
-                    float bx = cx - hh * 0.6f, by = cy + hh * 0.7f;
-                    float cxx = cx + hh * 0.9f, cyy = cy;
-                    fillTriangle(g, ax, ay, bx, by, cxx, cyy, color);
-                    // Хвостик (маленький треугольник слева снизу)
-                    float t1x = cx - hh * 0.6f, t1y = cy + hh * 0.3f;
-                    float t2x = cx - hh * 0.2f, t2y = cy + hh * 0.1f;
-                    float t3x = cx - hh * 0.6f, t3y = cy + hh * 0.7f;
-                    fillTriangle(g, t1x, t1y, t2x, t2y, t3x, t3y, color);
-                }
-                case 2 -> { // Discord:简化 маска — овал шире снизу
-                    int rr = (int)(size * 0.42);
-                    for (int dy = -rr; dy <= rr; dy++) {
-                        float xScale = 1f + 0.18f * Math.max(0, (float)dy / rr);
-                        int hw = (int)(rr * xScale);
-                        g.fill(cx - hw, cy + dy, cx + hw, cy + dy + 1, color);
-                    }
-                }
-                case 3 -> { // Globe: обводка круга + меридиан + экватор
-                    int rr = (int)(size * 0.38);
-                    // Обводка круга (толщина ~1.5px, рисуем внешнюю и вычитаем внутреннюю)
-                    for (int dy = -rr; dy <= rr; dy++) {
-                        int hw = (int) Math.sqrt(Math.max(0, rr * rr - dy * dy));
-                        int inner = rr - Math.max(1, (int)(size * 0.07));
-                        int ihw = dy >= -inner && dy <= inner
-                                ? (int) Math.sqrt(Math.max(0, inner * inner - dy * dy)) : 0;
-                        int left = cx - hw, right = cx + hw;
-                        if (ihw > 0) { left = cx - ihw + 1; right = cx + ihw - 1; }
-                        if (right > left) {
-                            if (cx - hw < left) g.fill(cx - hw, cy + dy, left, cy + dy + 1, color);
-                            if (right < cx + hw) g.fill(right, cy + dy, cx + hw, cy + dy + 1, color);
-                        } else if (hw > 0) {
-                            g.fill(cx - hw, cy + dy, cx + hw, cy + dy + 1, color);
-                        }
-                    }
-                    // Вертикальный меридиан
-                    int lt = Math.max(1, (int)(size * 0.06));
-                    g.fill(cx - lt/2, cy - rr, cx + lt/2 + 1, cy + rr, color);
-                    // Горизонтальная линия (экватор)
-                    g.fill(cx - rr, cy - lt/2, cx + rr, cy + lt/2 + 1, color);
-                }
-            }
-        }
-
-        /** Заполняет треугольник (scanline). */
-        private static void fillTriangle(GuiGraphics g, float x0, float y0, float x1, float y1, float x2, float y2, int color) {
-            int topY = (int) Math.min(y0, Math.min(y1, y2));
-            int botY = (int) Math.max(y0, Math.max(y1, y2));
-            for (int row = topY; row <= botY; row++) {
-                float y = row + 0.5f;
-                float minX = x0, maxX = x0;
-                // Edge 0→1
-                if ((y0 <= y && y1 > y) || (y1 <= y && y0 > y)) {
-                    float t = (y - y0) / (y1 - y0);
-                    float x = x0 + t * (x1 - x0);
-                    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-                }
-                // Edge 1→2
-                if ((y1 <= y && y2 > y) || (y2 <= y && y1 > y)) {
-                    float t = (y - y1) / (y2 - y1);
-                    float x = x1 + t * (x2 - x1);
-                    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-                }
-                // Edge 2→0
-                if ((y2 <= y && y0 > y) || (y0 <= y && y2 > y)) {
-                    float t = (y - y2) / (y0 - y2);
-                    float x = x2 + t * (x0 - x2);
-                    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-                }
-                int lx = (int) minX, rx = (int) maxX;
-                if (rx > lx) g.fill(lx, row, rx, row + 1, color);
-            }
+            // Иконка из текстуры (36px для 18px display, 2x)
+            ResourceLocation tex = switch (iconType) {
+                case 1 -> hover ? GridUi.SOCIAL_TG_H : GridUi.SOCIAL_TG;
+                case 2 -> hover ? GridUi.SOCIAL_DC_H : GridUi.SOCIAL_DC;
+                default -> hover ? GridUi.SOCIAL_GL_H : GridUi.SOCIAL_GL;
+            };
+            int iconDisplaySize = GridUi.s(18);
+            int ix = x + (s - iconDisplaySize) / 2;
+            int iy = y + (s - iconDisplaySize) / 2;
+            com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+            com.mojang.blaze3d.systems.RenderSystem.enableBlend();
+            com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
+            g.blit(tex, ix, iy, 0, 0, iconDisplaySize, iconDisplaySize, 36, 36);
         }
     }
 
-    /* ═══════════════════════════
+        /* ═══════════════════════════
        КНОПКА МЕНЮ
        CSS: btn-primary-lg: 440×72, r12, accent bg, no border, glow 0 0 20px rgba(104,194,132,0.10)
            padding: 0 20px; .btn-icon 36×36 mr16px svg22×22
@@ -809,7 +740,7 @@ public final class GridScreen extends Screen {
                 int start = x + (w - total) / 2;
                 int iconCx = start + iconSize / 2;
                 int iconCy = y + h / 2;
-                drawIcon(g, icon, iconCx, iconCy, iconSize, iconColor);
+                drawIcon(g, icon, iconCx, iconCy, iconSize, hover);
                 // Текст с letter-spacing 1px (CSS: ls 0.8px, округляем до 1)
                 drawSpaced(g, fnt, GridUi.styled(rawTitle), start + iconSize + gap, y + (h - fnt.lineHeight) / 2, 1, text);
             } else {
@@ -824,7 +755,7 @@ public final class GridScreen extends Screen {
                 // Иконка по центру контейнера 36×36
                 int iconCx = x + padLeft + iconContainerSize / 2;
                 int iconCy = y + h / 2;
-                drawIcon(g, icon, iconCx, iconCy, iconSvgSize, iconColor);
+                drawIcon(g, icon, iconCx, iconCy, iconSvgSize, hover);
 
                 // Текстовый блок
                 int textX = x + padLeft + iconContainerSize + iconMarginRight;
@@ -845,16 +776,25 @@ public final class GridScreen extends Screen {
             }
         }
 
-        private static void drawIcon(GuiGraphics g, int icon, int cx, int cy, int size, int color) {
+        private static void drawIcon(GuiGraphics g, int icon, int cx, int cy, int displaySize, boolean hover) {
+            // Текстурные иконки: 44px для 22px display (большие), 28px для 14px (маленькие)
+            ResourceLocation tex;
+            int texSize;
             switch (icon) {
-                case ICON_PLAY    -> UiIcons.play(g, cx, cy, size, color);
-                case ICON_CHECK   -> UiIcons.check(g, cx, cy, size, color);
-                case ICON_SLIDERS -> UiIcons.sliders(g, cx, cy, size, color);
-                case ICON_INFO    -> UiIcons.info(g, cx, cy, size, color);
-                case ICON_BAG     -> UiIcons.bag(g, cx, cy, size, color);
-                case ICON_EXIT    -> UiIcons.exit(g, cx, cy, size, color);
-                default -> {}
+                case ICON_PLAY    -> { tex = GridUi.ICO_PLAY;  texSize = 44; }
+                case ICON_CHECK   -> { tex = GridUi.ICO_CHECK; texSize = 44; }
+                case ICON_SLIDERS -> { tex = hover ? GridUi.ICO_SETTINGS_H : GridUi.ICO_SETTINGS; texSize = 28; }
+                case ICON_INFO    -> { tex = hover ? GridUi.ICO_INFO_H : GridUi.ICO_INFO; texSize = 28; }
+                case ICON_BAG     -> { tex = hover ? GridUi.ICO_BAG_H : GridUi.ICO_BAG; texSize = 28; }
+                case ICON_EXIT    -> { tex = hover ? GridUi.ICO_EXIT_H : GridUi.ICO_EXIT; texSize = 28; }
+                default -> return;
             }
+            int ix = cx - displaySize / 2;
+            int iy = cy - displaySize / 2;
+            com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+            com.mojang.blaze3d.systems.RenderSystem.enableBlend();
+            com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
+            g.blit(tex, ix, iy, 0, 0, displaySize, displaySize, texSize, texSize);
         }
     }
 }

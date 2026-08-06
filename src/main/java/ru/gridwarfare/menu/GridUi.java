@@ -23,12 +23,29 @@ public final class GridUi {
         return ResourceLocation.fromNamespaceAndPath(GridMenu.MOD_ID, "textures/gui/" + path);
     }
 
-    public static final ResourceLocation ICON_TG  = tex("ui/circle_tg_n.png");
-    public static final ResourceLocation ICON_TG_H = tex("ui/circle_tg_h.png");
-    public static final ResourceLocation ICON_DC  = tex("ui/circle_dc_n.png");
-    public static final ResourceLocation ICON_DC_H = tex("ui/circle_dc_h.png");
-    public static final ResourceLocation ICON_GL  = tex("ui/circle_gl_n.png");
-    public static final ResourceLocation ICON_GL_H = tex("ui/circle_gl_h.png");
+    /* Иконки соц. сетей (36px текстуры для 18px display) */
+    public static final ResourceLocation SOCIAL_TG  = tex("ui/icons/social_tg.png");
+    public static final ResourceLocation SOCIAL_TG_H = tex("ui/icons/social_tg_h.png");
+    public static final ResourceLocation SOCIAL_DC  = tex("ui/icons/social_dc.png");
+    public static final ResourceLocation SOCIAL_DC_H = tex("ui/icons/social_dc_h.png");
+    public static final ResourceLocation SOCIAL_GL  = tex("ui/icons/social_globe.png");
+    public static final ResourceLocation SOCIAL_GL_H = tex("ui/icons/social_globe_h.png");
+
+    /* Иконки мелких кнопок (28px текстуры для 14px display) */
+    public static final ResourceLocation ICO_SETTINGS  = tex("ui/icons/icon_settings.png");
+    public static final ResourceLocation ICO_SETTINGS_H = tex("ui/icons/icon_settings_h.png");
+    public static final ResourceLocation ICO_INFO  = tex("ui/icons/icon_info.png");
+    public static final ResourceLocation ICO_INFO_H = tex("ui/icons/icon_info_h.png");
+    public static final ResourceLocation ICO_BAG  = tex("ui/icons/icon_bag.png");
+    public static final ResourceLocation ICO_BAG_H = tex("ui/icons/icon_bag_h.png");
+    public static final ResourceLocation ICO_EXIT  = tex("ui/icons/icon_exit.png");
+    public static final ResourceLocation ICO_EXIT_H = tex("ui/icons/icon_exit_h.png");
+
+    /* Иконки больших кнопок (44px текстуры для 22px display) */
+    public static final ResourceLocation ICO_PLAY  = tex("ui/icons/icon_play.png");
+    public static final ResourceLocation ICO_PLAY_H = tex("ui/icons/icon_play_h.png");
+    public static final ResourceLocation ICO_CHECK  = tex("ui/icons/icon_check.png");
+    public static final ResourceLocation ICO_CHECK_H = tex("ui/icons/icon_check_h.png");
 
     /* ═══ ЦВЕТА (из CSS :root) ═══ */
     public static final int ACCENT        = 0xFF68C284;
