@@ -596,15 +596,13 @@ public final class GridScreen extends Screen {
                 default -> 10;
             };
 
-            // PRIMARY без бордера (фон заполняет всё)
+            // PRIMARY: свечение СНАЧАЛА (под кнопкой), потом кнопка
             if (type == Type.PRIMARY) {
-                GridUi.roundedRect(g, x, y, w, h, radius, bg);
-                // box-shadow: 0 0 20px rgba(104,194,132,0.10) — на ховере увеличивается
                 if (hover) {
-                    // Свечение вокруг кнопки (только ховер)
                     int glow = 0x1A68C284; // rgba(104,194,132,0.10)
                     GridUi.roundedRect(g, x - 4, y - 4, w + 8, h + 8, radius + 4, glow);
                 }
+                GridUi.roundedRect(g, x, y, w, h, radius, bg);
             } else {
                 // Остальные: бордер + inset фон
                 GridUi.roundedRect(g, x, y, w, h, radius, border);
@@ -613,13 +611,17 @@ public final class GridScreen extends Screen {
 
             // Содержимое
             if (type == Type.SMALL || type == Type.SMALL_EXIT) {
-                // Мелкая кнопка: иконка + текст по центру
+                // Мелкая кнопка: иконка + текст по центру (с обрезкой если не влезает)
                 int iconSize = 14;
-                int textW = fnt.width(getMessage());
-                int total = iconSize + 8 + textW;
+                int gap = 8;
+                int availTextW = w - iconSize - gap - 16; // 8px padding с каждой стороны
+                String rawTitle = getMessage().getString();
+                String title = availTextW > 0 ? fnt.plainSubstrByWidth(rawTitle, availTextW) : "";
+                int textW = fnt.width(GridUi.styled(title));
+                int total = iconSize + gap + textW;
                 int start = x + (w - total) / 2;
                 drawIcon(g, icon, start + iconSize / 2, y + h / 2, iconSize, iconColor);
-                g.drawString(fnt, getMessage(), start + iconSize + 8, y + (h - 8) / 2, text, false);
+                g.drawString(fnt, GridUi.styled(title), start + iconSize + gap, y + (h - 8) / 2, text, false);
             } else {
                 // Крупная кнопка: иконка слева + заголовок + описание
                 int padX = 20;
