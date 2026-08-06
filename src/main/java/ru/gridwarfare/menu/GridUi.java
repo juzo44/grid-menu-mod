@@ -1,16 +1,17 @@
 package ru.gridwarfare.menu;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 
-/** Отрисовка в стиле сайта GRID: hero-фон с картинкой, тёмные градиенты, зелёный акцент, минимализм. */
+/** Отрисовка в стиле утверждённого макета: фон-картинка, градиент, виньетка, зелёный акцент #68C284. */
 public final class GridUi {
     public static final ResourceLocation BG_TEXTURE =
             ResourceLocation.fromNamespaceAndPath(GridMenu.MOD_ID, "textures/gui/ui/bg_menu.png");
 
-    /** Кастомный шрифт Inter (font/grid.json). */
     public static final ResourceLocation FONT = ResourceLocation.fromNamespaceAndPath(GridMenu.MOD_ID, "grid");
 
     private static ResourceLocation tex(String path) {
@@ -24,110 +25,113 @@ public final class GridUi {
     public static final ResourceLocation ICON_GL = tex("ui/circle_gl_n.png");
     public static final ResourceLocation ICON_GL_H = tex("ui/circle_gl_h.png");
 
-    private static final int BG_W = 1280;
-    private static final int BG_H = 720;
+    /* ── Цвета из макета ── */
+    public static final int ACCENT       = 0xFF68C284;
+    public static final int ACCENT_HOVER = 0xFF7CD090;
+    public static final int ACCENT_DARK  = 0xFF4A9C66;
+    public static final int ACCENT_DARKER= 0xFF387A50;
+    public static final int BG_DEEP      = 0xFF0B0F0C;
+    public static final int TEXT_MAIN    = 0xFFF3F6F3;
+    public static final int TEXT_MUTED   = 0xFF8B978F;
+    public static final int TEXT_DIM     = 0xFF5A655E;
+    public static final int LINE_COLOR   = 0xFF344038;
+    public static final int PANEL_BG     = 0xD10C100E;
+    public static final int ACCENT_DIM   = 0x2668C284;
+    public static final int ACCENT_BORDER= 0x4D68C284;
+    public static final int GREEN        = 0xFF68C284;
 
-    /** Текст с кастомным шрифтом GRID. */
+    private GridUi() {}
+
+    /* ── Текст с кастомным шрифтом ── */
     public static Component styled(String text) {
         return Component.literal(text).setStyle(Style.EMPTY.withFont(FONT));
     }
 
-    public static final int GREEN = 0xFF78EE75;
-    public static final int TEXT_MAIN = 0xFFF3F6F3;
-    public static final int TEXT_MUTED = 0xFF8B978F;
-    public static final int PANEL_BG = 0xDB0C100E;
-    public static final int PANEL_LINE = 0xFF344038;
-    public static final int BUTTON_LINE = 0xFF49544D;
-
-    private GridUi() {
-    }
-
-    /** Фон главного экрана: тёплый тёмный градиент, заметные мягкие пятна и тонкая сетка. */
+    /* ══════════════════════════════════════════
+       ФОН: картинка + градиент + виньетка
+       ══════════════════════════════════════════ */
     public static void background(GuiGraphics g, int w, int h) {
+        // 1) Фоновая картинка (cover, центрированная)
+        RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        g.blit(BG_TEXTURE, 0, 0, 0, 0, w, h, w, h);
+
+        // 2) Градиент-оверлей (сверху-вниз, тёмный)
+        // top: rgba(11,15,12,0.72) → mid: rgba(11,15,12,0.50) → bottom: rgba(11,15,12,0.68)
         for (int y = 0; y < h; y++) {
             float t = (float) y / Math.max(1, h - 1);
-            g.fill(0, y, w, y + 1, lerpColor(0xFF0B0F0C, 0xFF1E2620, t));
+            int alpha;
+            if (t < 0.4f) {
+                alpha = (int) lerp(0.72f, 0.50f, t / 0.4f);
+            } else {
+                alpha = (int) lerp(0.50f, 0.68f, (t - 0.4f) / 0.6f);
+            }
+            g.fill(0, y, w, y + 1, (alpha << 24) | 0x0B0F0C);
         }
 
-        spotlight(g, w / 2, (int) (h * 0.34), (int) (w * 0.65), 55, 0xFF354C3C);
-        spotlight(g, (int) (w * 0.88), (int) (h * 0.18), (int) (w * 0.4), 32, 0xFF2A3B2E);
-        spotlight(g, (int) (w * 0.08), (int) (h * 0.9), (int) (w * 0.45), 36, 0xFF24322A);
-
-        drawGrid(g, w, h);
+        // 3) Виньетка (радиальная, прозрачная в центре, тёмная по краям)
+        int cx = w / 2, cy = h / 2;
+        float maxDist = (float) Math.sqrt((double)(cx * cx + cy * cy));
+        int step = 4;
+        for (int y = 0; y < h; y += step) {
+            for (int x = 0; x < w; x += step) {
+                float dx = x + step / 2f - cx;
+                float dy = y + step / 2f - cy;
+                float dist = (float) Math.sqrt(dx * dx + dy * dy) / maxDist;
+                // transparent < 40%, then ramp to 0.50 at edge
+                float vigAlpha;
+                if (dist < 0.4f) {
+                    vigAlpha = 0f;
+                } else {
+                    vigAlpha = (dist - 0.4f) / 0.6f * 0.50f;
+                }
+                if (vigAlpha > 0.01f) {
+                    int a = (int)(vigAlpha * 255);
+                    g.fill(x, y, x + step, y + step, (a << 24));
+                }
+            }
+        }
     }
 
-    /** Мягкое световое пятно (несколько полупрозрачных слоёв от центра до края). */
-    private static void spotlight(GuiGraphics g, int cx, int cy, int radius, int maxAlpha, int color) {
-        int layers = 32;
-        for (int i = layers; i >= 1; i--) {
-            float t = (float) i / layers;
-            int size = (int) (radius * t);
-            int alpha = (int) (maxAlpha * (1 - t) * (1 - t));
-            int rgb = color & 0xFFFFFF;
-            g.fill(cx - size, cy - size, cx + size, cy + size, (alpha << 24) | rgb);
-        }
-    }
-
-    private static void drawGrid(GuiGraphics g, int w, int h) {
-        int cell = 96;
-        int color = 0x1A2B3A2E;
-        for (int x = 0; x < w; x += cell) {
-            g.fill(x, 0, x + 1, h, color);
-        }
-        for (int y = 0; y < h; y += cell) {
-            g.fill(0, y, w, y + 1, color);
-        }
-    }
-
-    /** Марка бренда как на сайте: зелёная рамка со срезанными углами и буквой. */
+    /* ══════════════════════════════
+       БРЕНД-МАРКА «G» (clip-path 5px)
+       ══════════════════════════════ */
     public static void brandMark(GuiGraphics g, int x, int y, int size) {
-        clippedSquare(g, x, y, size, GREEN);
-        clippedSquare(g, x + 3, y + 3, size - 6, 0xFF0A0D0C);
-        var font = net.minecraft.client.Minecraft.getInstance().font;
-        g.drawCenteredString(font, styled("G"), x + size / 2, y + size / 2 - 4, GREEN);
+        clippedCorners(g, x, y, size, size, 5, ACCENT);
+        var font = Minecraft.getInstance().font;
+        g.drawCenteredString(font, styled("G"), x + size / 2, y + size / 2 - 4, BG_DEEP);
     }
 
-    /** Тёмная марка с зелёной буквой (для тёмных панелей). */
-    public static void brandMarkDark(GuiGraphics g, int x, int y, int size) {
-        clippedSquare(g, x, y, size, PANEL_LINE);
-        clippedSquare(g, x + 2, y + 2, size - 4, 0xFF101613);
-        var font = net.minecraft.client.Minecraft.getInstance().font;
-        g.drawCenteredString(font, styled("G"), x + size / 2, y + size / 2 - 4, GREEN);
-    }
-
-    /**
-     * Угловатая марка как у логотипа сайта (срезанные углы).
-     * clip-path: polygon(15% 0, 100% 0, 100% 85%, 85% 100%, 0 100%, 0 15%).
-     */
-    public static void clippedSquare(GuiGraphics g, int x, int y, int size, int color) {
-        int cut = Math.max(1, size * 15 / 100);
-        for (int row = 0; row < size; row++) {
-            int left = 0;
-            int right = size;
+    /** Октагон со срезанными углами по 5px. */
+    public static void clippedCorners(GuiGraphics g, int x, int y, int w, int h, int cut, int color) {
+        for (int row = 0; row < h; row++) {
+            int left = 0, right = w;
             if (row < cut) {
                 left = cut - row;
-                right = size;
-            } else if (row >= size - cut) {
-                left = 0;
-                right = size - (row - (size - cut)) - 1;
+            } else if (row >= h - cut) {
+                right = w - (row - (h - cut)) - 1;
             }
             if (left < right) g.fill(x + left, y + row, x + right, y + row + 1, color);
         }
     }
 
-    /** Сглаженный прямоугольник с рамкой (панель). */
+    /* ═══════════════════════
+       ПАНЕЛИ И КАРТОЧКИ
+       ═══════════════════════ */
     public static void panel(GuiGraphics g, int x, int y, int w, int h, int radius) {
-        roundedRect(g, x, y, w, h, radius, PANEL_LINE);
+        roundedRect(g, x, y, w, h, radius, LINE_COLOR);
         roundedRect(g, x + 1, y + 1, w - 2, h - 2, Math.max(1, radius - 1), PANEL_BG);
     }
 
-    /** Панель с заданным радиусом и цветами (карточка сервера). */
     public static void card(GuiGraphics g, int x, int y, int w, int h) {
-        roundedRect(g, x, y, w, h, 0, PANEL_LINE);
-        roundedRect(g, x + 1, y + 1, w - 2, h - 2, 0, PANEL_BG);
+        panel(g, x, y, w, h, 10);
     }
 
-    private static void roundedRect(GuiGraphics g, int x, int y, int w, int h, int radius, int color) {
+    /* ════════════════════
+       РАУНДРЕКТЫ
+       ════════════════════ */
+    public static void roundedRect(GuiGraphics g, int x, int y, int w, int h, int radius, int color) {
         int r = Math.min(radius, Math.min(w, h) / 2);
         for (int row = 0; row < h; row++) {
             int edge = Math.min(row, h - 1 - row);
@@ -140,20 +144,18 @@ public final class GridUi {
         }
     }
 
+    /* ════════════════════
+       УТИЛИТЫ ЦВЕТА
+       ════════════════════ */
     public static int lerpColor(int from, int to, float t) {
-        int a = lerp((from >> 24) & 0xFF, (to >> 24) & 0xFF, t);
-        int r = lerp((from >> 16) & 0xFF, (to >> 16) & 0xFF, t);
-        int g = lerp((from >> 8) & 0xFF, (to >> 8) & 0xFF, t);
-        int b = lerp(from & 0xFF, to & 0xFF, t);
+        int a = lerpI((from >> 24) & 0xFF, (to >> 24) & 0xFF, t);
+        int r = lerpI((from >> 16) & 0xFF, (to >> 16) & 0xFF, t);
+        int g = lerpI((from >> 8) & 0xFF, (to >> 8) & 0xFF, t);
+        int b = lerpI(from & 0xFF, to & 0xFF, t);
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
-    private static int rgba(float alpha, int r, int g, int b) {
-        int a = (int) (Math.max(0, Math.min(1, alpha)) * 255);
-        return (a << 24) | (r << 16) | (g << 8) | b;
-    }
-
-    private static int lerp(int from, int to, float t) {
+    private static int lerpI(int from, int to, float t) {
         return (int) (from + (to - from) * Math.max(0, Math.min(1, t)));
     }
 
