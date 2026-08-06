@@ -96,13 +96,14 @@ public final class GridScreen extends Screen {
 
         // Total content height (centered vertically in .main-content which is below topbar)
         // CSS: .main-content starts at 60px (topbar height)
-        int totalH = titleBoxH + Math.abs(tagGap) + tagInnerH + titleGap
+        // tagGap = -2 means tag overlaps titleBox by 2px, so effective height = titleBoxH + tagInnerH - 2
+        int totalH = (titleBoxH + tagInnerH - 2) + titleGap
                    + playH + bigGap + singleH + smallRowGap + smallH;
         // startY: centered in the area below the 60px topbar
         int contentAreaH = height - 60;
         int startY = 60 + (contentAreaH - totalH) / 2;
 
-        int playY   = startY + titleBoxH + Math.abs(tagGap) + tagInnerH + titleGap;
+        int playY   = startY + titleBoxH + tagInnerH - 2 + titleGap;
         int singleY = playY + playH + bigGap;
         int rowY    = singleY + singleH + smallRowGap;
 
@@ -342,26 +343,22 @@ public final class GridScreen extends Screen {
 
         // Пересчитаем startY (как в init)
         int tagInnerH = 4 + fnt.lineHeight + 4;
-        int tagGap = -2;
         int titleGap = 48;
         int playH = 72, singleH = 62, smallH = 46;
         int bigGap = 10, smallRowGap = 10;
-        int totalH = titleBoxH + Math.abs(tagGap) + tagInnerH + titleGap
+        int totalH = (titleBoxH + tagInnerH - 2) + titleGap
                    + playH + bigGap + singleH + smallRowGap + smallH;
         int contentAreaH = height - 60;
         int startY = 60 + (contentAreaH - totalH) / 2;
         int baseY = startY;
         int boxX = cx - boxW / 2;
 
-        // CSS box-shadow: 0 9px 20px rgba(0,0,0,0.5) — размытая тень (имитация несколькими слоями)
-        for (int i = 0; i < 6; i++) {
-            float t = (float) i / 6;
-            int offY = 9 + (int)(t * 14); // 9..23
-            int a = (int)(0.5f * 255 * (1f - t * 0.7f)); // затухание
-            GridUi.roundedRect(g, boxX - (int)(t * 4), baseY + offY, boxW + (int)(t * 8), titleBoxH + (int)(t * 4), 8 + (int)(t * 6), (a << 24));
-        }
+        // CSS box-shadow: 0 9px 20px rgba(0,0,0,0.5) — размытая тень (3 слоя)
+        GridUi.roundedRect(g, boxX - 4, baseY + 13, boxW + 8, titleBoxH + 4, 12, 0x26000000);
+        GridUi.roundedRect(g, boxX - 2, baseY + 10, boxW + 4, titleBoxH + 2, 10, 0x40000000);
+        GridUi.roundedRect(g, boxX, baseY + 9, boxW, titleBoxH, 8, 0x80000000);
 
-        // CSS box-shadow: 0 7px 0 accent-darker, 0 5px 0 accent-dark (рисуем от дальнего к ближнему)
+        // CSS box-shadow: 0 7px 0 accent-darker, 0 5px 0 accent-dark
         GridUi.roundedRect(g, boxX, baseY + 7, boxW, titleBoxH, 8, GridUi.ACCENT_DARKER);
         GridUi.roundedRect(g, boxX, baseY + 5, boxW, titleBoxH, 8, GridUi.ACCENT_DARK);
         // Основной бокс
