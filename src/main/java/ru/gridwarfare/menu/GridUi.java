@@ -48,18 +48,20 @@ public final class GridUi {
     }
 
     /* ══════════════════════════════════════════
-       ФОН: картинка + градиент + виньетка
+       ФОН: картинка + градиент + виньетка (быстрая версия)
        ══════════════════════════════════════════ */
     public static void background(GuiGraphics g, int w, int h) {
-        // 1) Фоновая картинка (cover, центрированная)
+        // 1) Фоновая картинка (cover, растянутая на весь экран)
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         g.blit(BG_TEXTURE, 0, 0, 0, 0, w, h, w, h);
 
         // 2) Градиент-оверлей (сверху-вниз, тёмный)
-        // top: rgba(11,15,12,0.72) → mid: rgba(11,15,12,0.50) → bottom: rgba(11,15,12,0.68)
-        for (int y = 0; y < h; y++) {
+        // top: rgba(11,15,12,0.72) → mid 40%: rgba(11,15,12,0.50) → bottom: rgba(11,15,12,0.68)
+        // Рисуем горизонтальными полосами по 2px для скорости
+        int step = 2;
+        for (int y = 0; y < h; y += step) {
             float t = (float) y / Math.max(1, h - 1);
             int alpha;
             if (t < 0.4f) {
@@ -67,30 +69,25 @@ public final class GridUi {
             } else {
                 alpha = (int) lerp(0.50f, 0.68f, (t - 0.4f) / 0.6f);
             }
-            g.fill(0, y, w, y + 1, (alpha << 24) | 0x0B0F0C);
+            g.fill(0, y, w, y + step, (alpha << 24) | 0x0B0F0C);
         }
 
-        // 3) Виньетка (радиальная, прозрачная в центре, тёмная по краям)
-        int cx = w / 2, cy = h / 2;
-        float maxDist = (float) Math.sqrt((double)(cx * cx + cy * cy));
-        int step = 4;
-        for (int y = 0; y < h; y += step) {
-            for (int x = 0; x < w; x += step) {
-                float dx = x + step / 2f - cx;
-                float dy = y + step / 2f - cy;
-                float dist = (float) Math.sqrt(dx * dx + dy * dy) / maxDist;
-                // transparent < 40%, then ramp to 0.50 at edge
-                float vigAlpha;
-                if (dist < 0.4f) {
-                    vigAlpha = 0f;
-                } else {
-                    vigAlpha = (dist - 0.4f) / 0.6f * 0.50f;
-                }
-                if (vigAlpha > 0.01f) {
-                    int a = (int)(vigAlpha * 255);
-                    g.fill(x, y, x + step, y + step, (a << 24));
-                }
-            }
+        // 3) Виньетка — рисуем только 4 крайние полосы (верх/низ/лево/право)
+        // Это даёт схожий эффект с макетом при минимальной стоимости
+        int vigStrength = (int)(0.50 * 255); // max 128
+        int vigBands = 80; // пикселей от края
+        for (int i = 0; i < vigBands; i++) {
+            float t = 1f - (float) i / vigBands;
+            int a = (int)(t * t * vigStrength); // квадратичная плавность
+            int color = (a << 24);
+            // верх
+            g.fill(0, i, w, i + 1, color);
+            // низ
+            g.fill(0, h - 1 - i, w, h - i, color);
+            // лево
+            g.fill(i, 0, i + 1, h, color);
+            // право
+            g.fill(w - 1 - i, 0, w - i, h, color);
         }
     }
 
