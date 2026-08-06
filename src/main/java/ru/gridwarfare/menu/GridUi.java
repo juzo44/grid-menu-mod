@@ -1,11 +1,14 @@
 package ru.gridwarfare.menu;
 
+import com.mojang.blaze3d.platform.DynamicTexture;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
+
+import java.util.IdentityHashMap;
 
 /**
  * Дизайн-система GRID — точный порт CSS-мокапа.
@@ -45,8 +48,6 @@ public final class GridUi {
     public static final int ACCENT_BORDER = 0x4D68C284;   // rgba(104,194,132,0.30)
 
     /* Готовые составные цвета для кнопок */
-    public static final int BTN_PRIMARY_BG    = ACCENT;
-    public static final int BTN_PRIMARY_HOVER = ACCENT_HOVER;
     public static final int BTN_SEC_BG        = 0xBF0C100E; // rgba(12,16,14,0.75)
     public static final int BTN_SEC_HOVER     = 0xD9121814; // rgba(18,24,20,0.85)
     public static final int BTN_SM_BG         = 0xA60C100E; // rgba(12,16,14,0.65)
@@ -60,16 +61,24 @@ public final class GridUi {
     }
 
     /* ═══════════════════════════
-       ФОН (bg-photo + overlay + vignette)
+       ФОН (bg-photo + overlay + radial vignette)
+       CSS: .bg-overlay linear-gradient(180deg, rgba(11,15,12,0.72) 0%, rgba(11,15,12,0.50) 40%, rgba(11,15,12,0.68) 100%)
+           .bg-vignette radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.50) 100%)
        ═══════════════════════════ */
+
+    // Кэш виньеточной текстуры (пересоздаётся при изменении размера)
+    private static DynamicTexture vignetteTex;
+    private static ResourceLocation vignetteLoc;
+    private static int vigW = 0, vigH = 0;
+
     public static void background(GuiGraphics g, int w, int h) {
-        // 1) Текстура (cover)
+        // 1) Текстура фона (cover)
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         g.blit(BG_TEXTURE, 0, 0, 0, 0, w, h, w, h);
 
-        // 2) Градиент-оверлей: 72% → 50% → 68% (из CSS linear-gradient)
+        // 2) Градиент-оверлей: 72% → 50% → 68% (из CSS linear-gradient 180deg)
         for (int y = 0; y < h; y += 2) {
             float t = (float) y / Math.max(1, h - 1);
             int alpha;
@@ -81,28 +90,65 @@ public final class GridUi {
             g.fill(0, y, w, y + 2, (alpha << 24) | 0x0B0F0C);
         }
 
-        // 3) Виньетка — 4 края, по 80 полос каждый (~320 fill вместо 130K)
-        int vigMax = (int) (0.50 * 255);
-        int bands = 80;
-        for (int i = 0; i < bands; i++) {
-            float t = 1f - (float) i / bands;
-            int a = (int) (t * t * vigMax);
-            if (a < 1) continue;
-            int c = a << 24;
-            g.fill(0, i, w, i + 1, c);                // верх
-            g.fill(0, h - 1 - i, w, h - i, c);       // низ
-            g.fill(i, 0, i + 1, h, c);                 // лево
-            g.fill(w - 1 - i, 0, w - i, h, c);        // право
+        // 3) Радиальная виньетка — динамическая текстура (CSS: radial-gradient ellipse, transparent 40% → rgba(0,0,0,0.50) 100%)
+        ensureVignette(w, h);
+        RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        g.blit(vignetteLoc, 0, 0, 0, 0, w, h, w, h);
+    }
+
+    /** Создаёт (или переиспользует) текстуру радиальной виньетки. */
+    private static void ensureVignette(int w, int h) {
+        if (vignetteTex != null && vigW == w && vigH == h) return;
+
+        // Удаляем старую
+        if (vignetteTex != null) {
+            vignetteTex.close();
+            try { Minecraft.getInstance().getTextureManager().release(vignetteLoc); } catch (Throwable ignored) {}
         }
+
+        var img = new com.mojang.blaze3d.platform.NativeImage(w, h, false);
+        int cx = w / 2, cy = h / 2;
+        float rx = w / 2f, ry = h / 2f;
+
+        for (int y = 0; y < h; y++) {
+            float dy = (y - cy) / ry;
+            float dy2 = dy * dy;
+            for (int x = 0; x < w; x++) {
+                float dx = (x - cx) / rx;
+                float dist = (float) Math.sqrt(dx * dx + dy2);
+                int alpha = 0;
+                if (dist > 0.4f) {
+                    // Линейная интерполяция от 0 до 128 (50% из 255)
+                    alpha = Math.min(128, (int) ((dist - 0.4f) / 0.6f * 128f));
+                }
+                // ARGB формат: alpha в старшем байте, R=G=B=0 (чёрный)
+                img.setPixelRGBA(x, y, alpha << 24);
+            }
+        }
+
+        vignetteTex = new DynamicTexture(img);
+        vigW = w;
+        vigH = h;
+        vignetteLoc = ResourceLocation.fromNamespaceAndPath(GridMenu.MOD_ID, "dynamic/vignette");
+        Minecraft.getInstance().getTextureManager().register(vignetteLoc, vignetteTex);
     }
 
     /* ═══════════════════════════
-       БРЕНД-МАРКА (32x32 с обрезанными углами)
+       БРЕНД-МАРКА (32×32, clip-path: polygon(5px 0, ...), font-size 17px weight 900)
        ═══════════════════════════ */
     public static void brandMark(GuiGraphics g, int x, int y, int size) {
+        // CSS: clip-path: polygon(5px 0, calc(100% - 5px) 0, 100% 5px, 100% calc(100% - 5px), calc(100% - 5px) 100%, 5px 100%, 0 calc(100% - 5px), 0 5px)
         clippedCorners(g, x, y, size, size, 5, ACCENT);
+        // CSS: .brand-mark-letter font-size 17px font-weight 900
         var fnt = Minecraft.getInstance().font;
-        g.drawCenteredString(fnt, styled("G"), x + size / 2, y + size / 2 - 4, BG_DEEP);
+        g.pose().pushPose();
+        g.pose().translate((float) (x + size / 2), (float) (y + size / 2), 0.0F);
+        float s = 1.4F; // масштабируем базовый MC-шрифт (12px) чтобы примерно попасть в 17px
+        g.pose().scale(s, s, 1.0F);
+        g.drawCenteredString(fnt, styled("G"), 0, -4, BG_DEEP);
+        g.pose().popPose();
     }
 
     /** Рисует прямоугольник с обрезанными по диагонали углами (clip-path: polygon(...)). */
@@ -121,7 +167,8 @@ public final class GridUi {
     }
 
     /* ═══════════════════════════
-       ПАНЕЛИ (border + inset fill)
+       ПАНЕЛИ (border 1px LINE_COLOR + inset 1px PANEL_BG)
+       CSS: .panel { background: var(--bg-panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
        ═══════════════════════════ */
     public static void panel(GuiGraphics g, int x, int y, int w, int h, int radius) {
         // Бордер (LINE_COLOR)
@@ -136,7 +183,7 @@ public final class GridUi {
     }
 
     /* ═══════════════════════════
-       СКРУГЛЁННЫЙ ПРЯМОУГОЛЬНИК
+       СКРУГЛЁННЫЙ ПРЯМОУГОЛЬНИК (scanline)
        ═══════════════════════════ */
     public static void roundedRect(GuiGraphics g, int x, int y, int w, int h, int radius, int color) {
         int r = Math.min(radius, Math.min(w, h) / 2);
@@ -177,16 +224,5 @@ public final class GridUi {
     /** Отступ от краёв экрана (CSS: padding 40px, минимум 24px). */
     public static int pad(int screenWidth) {
         return Math.max(24, Math.min(40, screenWidth * 4 / 100));
-    }
-
-    /** Ширина меню-колонки (макс 440px, адаптивная). */
-    public static int menuWidth(int screenWidth, int rightColW, int pad) {
-        return Math.min(440, (screenWidth - pad * 2 - rightColW - 40) * 45 / 100);
-    }
-
-    /** X-позиция меню-колонки (центрирована в доступном пространстве). */
-    public static int menuX(int screenWidth, int menuW, int rightColW, int pad) {
-        int available = screenWidth - pad * 2 - rightColW - 40;
-        return pad + (available - menuW) / 2;
     }
 }
