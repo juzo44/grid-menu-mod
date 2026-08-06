@@ -15,6 +15,7 @@ import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -637,16 +638,17 @@ public final class GridScreen extends Screen {
             GridUi.roundedRect(g, x, y, s, s, r, border);
             GridUi.roundedRect(g, x + 1, y + 1, s - 2, s - 2, Math.max(1, r - 1), bg);
 
-            // Векторные иконки (без текстур!)
+            // Текстурные иконки с тинтированием
             int iconSize = GridUi.s(18);
-            int iconCx = x + s / 2;
-            int iconCy = y + s / 2;
+            int ix = x + (s - iconSize) / 2;
+            int iy = y + (s - iconSize) / 2;
             int iconColor = hover ? GridUi.ACCENT : GridUi.TEXT_MUTED;
-            switch (iconType) {
-                case 1 -> UiIcons.telegram(g, iconCx, iconCy, iconSize, iconColor);
-                case 2 -> UiIcons.discord(g, iconCx, iconCy, iconSize, iconColor);
-                default -> UiIcons.globe(g, iconCx, iconCy, iconSize, iconColor);
-            }
+            ResourceLocation tex = switch (iconType) {
+                case 1 -> GridUi.SOCIAL_TG;
+                case 2 -> GridUi.SOCIAL_DC;
+                default -> GridUi.SOCIAL_GL;
+            };
+            GridUi.blitIcon(g, tex, ix, iy, iconSize, iconColor);
         }
     }
 
@@ -778,14 +780,17 @@ public final class GridScreen extends Screen {
         }
 
         private static void drawIcon(GuiGraphics g, int icon, int cx, int cy, int displaySize, int color) {
-            // Векторные иконки — никакого g.blit, чистая геометрия
-            switch (icon) {
-                case ICON_PLAY    -> UiIcons.play(g, cx, cy, displaySize, color);
-                case ICON_CHECK   -> UiIcons.check(g, cx, cy, displaySize, color);
-                case ICON_SLIDERS -> UiIcons.sliders(g, cx, cy, displaySize, color);
-                case ICON_INFO    -> UiIcons.info(g, cx, cy, displaySize, color);
-                case ICON_BAG     -> UiIcons.bag(g, cx, cy, displaySize, color);
-                case ICON_EXIT    -> UiIcons.exit(g, cx, cy, displaySize, color);
+            ResourceLocation tex = switch (icon) {
+                case ICON_PLAY    -> GridUi.ICO_PLAY;
+                case ICON_CHECK   -> GridUi.ICO_CHECK;
+                case ICON_SLIDERS -> GridUi.ICO_SETTINGS;
+                case ICON_INFO    -> GridUi.ICO_INFO;
+                case ICON_BAG     -> GridUi.ICO_BAG;
+                case ICON_EXIT    -> GridUi.ICO_EXIT;
+                default -> null;
+            };
+            if (tex != null) {
+                GridUi.blitIcon(g, tex, cx - displaySize / 2, cy - displaySize / 2, displaySize, color);
             }
         }
     }

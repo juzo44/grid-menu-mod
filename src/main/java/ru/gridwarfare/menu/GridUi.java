@@ -19,6 +19,21 @@ public final class GridUi {
     public static final ResourceLocation FONT =
             ResourceLocation.fromNamespaceAndPath(GridMenu.MOD_ID, "grid");
 
+    private static ResourceLocation tex(String path) {
+        return ResourceLocation.fromNamespaceAndPath(GridMenu.MOD_ID, "textures/gui/" + path);
+    }
+
+    /* Иконки: белые на прозрачном фоне, 64×64. Тинтируются через setShaderColor */
+    public static final ResourceLocation ICO_PLAY     = tex("ui/icons/icon_play.png");
+    public static final ResourceLocation ICO_CHECK    = tex("ui/icons/icon_check.png");
+    public static final ResourceLocation ICO_SETTINGS = tex("ui/icons/icon_settings.png");
+    public static final ResourceLocation ICO_INFO     = tex("ui/icons/icon_info.png");
+    public static final ResourceLocation ICO_BAG      = tex("ui/icons/icon_bag.png");
+    public static final ResourceLocation ICO_EXIT     = tex("ui/icons/icon_exit.png");
+    public static final ResourceLocation SOCIAL_TG    = tex("ui/icons/social_tg.png");
+    public static final ResourceLocation SOCIAL_DC    = tex("ui/icons/social_dc.png");
+    public static final ResourceLocation SOCIAL_GL    = tex("ui/icons/social_globe.png");
+
     /* ═══ ЦВЕТА (из CSS :root) ═══ */
     public static final int ACCENT        = 0xFF68C284;
     public static final int ACCENT_HOVER  = 0xFF7CD090;
@@ -167,6 +182,18 @@ public final class GridUi {
     /* ═══════════════════════════
        УТИЛИТЫ
        ═════════════════════════ */
+    public static void blitIcon(GuiGraphics g, ResourceLocation tex, int x, int y, int size, int color) {
+        float r = ((color >> 16) & 0xFF) / 255f;
+        float gv = ((color >> 8) & 0xFF) / 255f;
+        float b = (color & 0xFF) / 255f;
+        float a = ((color >> 24) & 0xFF) / 255f;
+        RenderSystem.setShaderColor(r, gv, b, a);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        g.blit(tex, x, y, 0, 0, size, size, 64, 64);
+        RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+    }
+
     public static int lerpColor(int from, int to, float t) {
         int a = lerpI((from >> 24) & 0xFF, (to >> 24) & 0xFF, t);
         int r = lerpI((from >> 16) & 0xFF, (to >> 16) & 0xFF, t);
