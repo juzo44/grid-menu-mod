@@ -174,9 +174,9 @@ public final class GridUi {
        УТИЛИТЫ ЛЕЙАУТА
        ═══════════════════════════ */
 
-    /** Отступ от краёв экрана, адаптивный (40px @ 1920, минимум 24px). */
+    /** Отступ от краёв экрана (CSS: padding 40px, минимум 24px). */
     public static int pad(int screenWidth) {
-        return Math.max(24, Math.min(120, screenWidth * 8 / 100));
+        return Math.max(24, Math.min(40, screenWidth * 4 / 100));
     }
 
     /** Ширина меню-колонки (макс 440px, адаптивная). */
