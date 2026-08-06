@@ -15,7 +15,6 @@ import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -536,7 +535,12 @@ public final class GridScreen extends Screen {
             // Дата (CSS: .news-date font-size 9px, text-dim, uppercase, ls 0.5px)
             g.drawString(fnt, GridUi.styled(date), x + GridUi.s(18), itemY, GridUi.TEXT_DIM, false);
             // Заголовок (CSS: .news-title font-size 11px, weight 500, text, margin-top 2px)
-            String clipped = fnt.plainSubstrByWidth(title, w - 36);
+            int maxTextW = w - GridUi.s(36);
+            String clipped = fnt.plainSubstrByWidth(title, maxTextW);
+            if (!clipped.equals(title) && clipped.length() > 3) {
+                int ellipsisW = fnt.width("...");
+                clipped = fnt.plainSubstrByWidth(title, Math.max(0, maxTextW - ellipsisW)) + "...";
+            }
             g.drawString(fnt, GridUi.styled(clipped), x + GridUi.s(18), itemY + GridUi.s(12), GridUi.TEXT_MAIN, false);
             // Разделитель (CSS: border-bottom 1px rgba(52,64,56,0.4))
             if (shown < 3) {
@@ -633,19 +637,16 @@ public final class GridScreen extends Screen {
             GridUi.roundedRect(g, x, y, s, s, r, border);
             GridUi.roundedRect(g, x + 1, y + 1, s - 2, s - 2, Math.max(1, r - 1), bg);
 
-            // Иконка из текстуры (36px для 18px display, 2x)
-            ResourceLocation tex = switch (iconType) {
-                case 1 -> hover ? GridUi.SOCIAL_TG_H : GridUi.SOCIAL_TG;
-                case 2 -> hover ? GridUi.SOCIAL_DC_H : GridUi.SOCIAL_DC;
-                default -> hover ? GridUi.SOCIAL_GL_H : GridUi.SOCIAL_GL;
-            };
-            int iconDisplaySize = GridUi.s(18);
-            int ix = x + (s - iconDisplaySize) / 2;
-            int iy = y + (s - iconDisplaySize) / 2;
-            com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-            com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-            com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
-            g.blit(tex, ix, iy, 0, 0, iconDisplaySize, iconDisplaySize, 36, 36);
+            // Векторные иконки (без текстур!)
+            int iconSize = GridUi.s(18);
+            int iconCx = x + s / 2;
+            int iconCy = y + s / 2;
+            int iconColor = hover ? GridUi.ACCENT : GridUi.TEXT_MUTED;
+            switch (iconType) {
+                case 1 -> UiIcons.telegram(g, iconCx, iconCy, iconSize, iconColor);
+                case 2 -> UiIcons.discord(g, iconCx, iconCy, iconSize, iconColor);
+                default -> UiIcons.globe(g, iconCx, iconCy, iconSize, iconColor);
+            }
         }
     }
 
@@ -740,7 +741,7 @@ public final class GridScreen extends Screen {
                 int start = x + (w - total) / 2;
                 int iconCx = start + iconSize / 2;
                 int iconCy = y + h / 2;
-                drawIcon(g, icon, iconCx, iconCy, iconSize, hover);
+                drawIcon(g, icon, iconCx, iconCy, iconSize, iconColor);
                 // Текст с letter-spacing 1px (CSS: ls 0.8px, округляем до 1)
                 drawSpaced(g, fnt, GridUi.styled(rawTitle), start + iconSize + gap, y + (h - fnt.lineHeight) / 2, 1, text);
             } else {
@@ -755,7 +756,7 @@ public final class GridScreen extends Screen {
                 // Иконка по центру контейнера 36×36
                 int iconCx = x + padLeft + iconContainerSize / 2;
                 int iconCy = y + h / 2;
-                drawIcon(g, icon, iconCx, iconCy, iconSvgSize, hover);
+                drawIcon(g, icon, iconCx, iconCy, iconSvgSize, iconColor);
 
                 // Текстовый блок
                 int textX = x + padLeft + iconContainerSize + iconMarginRight;
@@ -776,25 +777,16 @@ public final class GridScreen extends Screen {
             }
         }
 
-        private static void drawIcon(GuiGraphics g, int icon, int cx, int cy, int displaySize, boolean hover) {
-            // Текстурные иконки: 44px для 22px display (большие), 28px для 14px (маленькие)
-            ResourceLocation tex;
-            int texSize;
+        private static void drawIcon(GuiGraphics g, int icon, int cx, int cy, int displaySize, int color) {
+            // Векторные иконки — никакого g.blit, чистая геометрия
             switch (icon) {
-                case ICON_PLAY    -> { tex = GridUi.ICO_PLAY;  texSize = 44; }
-                case ICON_CHECK   -> { tex = GridUi.ICO_CHECK; texSize = 44; }
-                case ICON_SLIDERS -> { tex = hover ? GridUi.ICO_SETTINGS_H : GridUi.ICO_SETTINGS; texSize = 28; }
-                case ICON_INFO    -> { tex = hover ? GridUi.ICO_INFO_H : GridUi.ICO_INFO; texSize = 28; }
-                case ICON_BAG     -> { tex = hover ? GridUi.ICO_BAG_H : GridUi.ICO_BAG; texSize = 28; }
-                case ICON_EXIT    -> { tex = hover ? GridUi.ICO_EXIT_H : GridUi.ICO_EXIT; texSize = 28; }
-                default -> return;
+                case ICON_PLAY    -> UiIcons.play(g, cx, cy, displaySize, color);
+                case ICON_CHECK   -> UiIcons.check(g, cx, cy, displaySize, color);
+                case ICON_SLIDERS -> UiIcons.sliders(g, cx, cy, displaySize, color);
+                case ICON_INFO    -> UiIcons.info(g, cx, cy, displaySize, color);
+                case ICON_BAG     -> UiIcons.bag(g, cx, cy, displaySize, color);
+                case ICON_EXIT    -> UiIcons.exit(g, cx, cy, displaySize, color);
             }
-            int ix = cx - displaySize / 2;
-            int iy = cy - displaySize / 2;
-            com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-            com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-            com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
-            g.blit(tex, ix, iy, 0, 0, displaySize, displaySize, texSize, texSize);
         }
     }
 }

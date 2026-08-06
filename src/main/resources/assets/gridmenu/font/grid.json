@@ -2,6 +2,20 @@
   "providers": [
     {
       "type": "ttf",
+      "file": "gridmenu:inter_latin_400.ttf",
+      "shift": [0.5, 1],
+      "size": 11,
+      "oversample": 8
+    },
+    {
+      "type": "ttf",
+      "file": "gridmenu:inter_cyrillic_400.ttf",
+      "shift": [0.5, 1],
+      "size": 11,
+      "oversample": 8
+    },
+    {
+      "type": "ttf",
       "file": "gridmenu:inter_latin_600.ttf",
       "shift": [0.5, 1],
       "size": 12,
@@ -12,6 +26,20 @@
       "file": "gridmenu:inter_cyrillic_600.ttf",
       "shift": [0.5, 1],
       "size": 12,
+      "oversample": 8
+    },
+    {
+      "type": "ttf",
+      "file": "gridmenu:inter_latin_700.ttf",
+      "shift": [0.5, 1],
+      "size": 13,
+      "oversample": 8
+    },
+    {
+      "type": "ttf",
+      "file": "gridmenu:inter_cyrillic_700.ttf",
+      "shift": [0.5, 1],
+      "size": 13,
       "oversample": 8
     }
   ]
