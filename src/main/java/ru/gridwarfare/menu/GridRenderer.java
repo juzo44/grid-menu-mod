@@ -115,8 +115,8 @@ public final class GridRenderer {
         pathInfo = svgPath("M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z");
         pathBag = svgPath("M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1.003 1.003 0 0020 4H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z");
         pathExit = svgPath("M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z");
-        // Telegram: full icon with circle
-        pathTg = svgPath("M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0a12 12 0 00-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z");
+        // Telegram: airplane only (circle drawn separately in paintSocial for proper color control)
+        pathTg = svgPath("m4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z");
         pathDc = svgPath("M20.317 4.37a19.79 19.79 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.445.865-.608 1.25-1.845-.276-3.68-.276-5.487 0-.164-.393-.406-.874-.618-1.25a.077.077 0 00-.078-.037 19.74 19.74 0 00-4.885 1.515.07.07 0 00-.032.028C.533 9.046-.319 13.58.099 18.058a.082.082 0 00.031.056c2.053 1.508 4.041 2.423 5.993 3.029a.078.078 0 00.084-.028c.462-.63.873-1.295 1.226-1.994a.076.076 0 00-.042-.106c-.653-.247-1.274-.549-1.872-.892a.077.077 0 01-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 01.078-.01c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 01.078.009c.12.1.246.198.373.293a.077.077 0 01-.007.127 12.3 12.3 0 01-1.873.892.076.076 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028c1.961-.606 3.95-1.522 6.002-3.029a.077.077 0 00.031-.055c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.029zM8.02 15.33c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.332-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.332-.946 2.418-2.157 2.418z");
         pathGlobe = svgPath("M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z");
 
@@ -127,7 +127,21 @@ public final class GridRenderer {
         icInfo = renderIcon(pathInfo, 24, Color.WHITE);
         icBag = renderIcon(pathBag, 24, Color.WHITE);
         icExit = renderIcon(pathExit, 24, Color.WHITE);
-        icTg = renderIcon(pathTg, 24, Color.WHITE);
+        // Telegram: circle (r=10) centered at (12,12), airplane translated to center within circle
+        icTg = new BufferedImage(24, 24, BufferedImage.TYPE_INT_ARGB);
+        {
+            Graphics2D tg = icTg.createGraphics();
+            tg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            tg.setColor(Color.WHITE);
+            tg.fillOval(2, 2, 20, 20);
+            // The airplane path coords are ~4.96..20.5 x 7.22..18.05, center ~(12.7, 12.6)
+            // Translate so visual center of airplane sits at (12, 12) in the 24x24 icon
+            double ax = 12.7, ay = 12.6;
+            tg.translate(12 - ax, 12 - ay);
+            tg.setColor(Color.WHITE);
+            tg.fill(pathTg);
+            tg.dispose();
+        }
         icDc = renderIcon(pathDc, 24, Color.WHITE);
         icGlobe = renderIcon(pathGlobe, 24, Color.WHITE);
 
@@ -227,7 +241,11 @@ public final class GridRenderer {
         int smallH = 46;
         int btnGap = 10;
         int totalMenuH = titleBlockH + titleGap + playH + btnGap + singleH + btnGap + smallH;
-        int baseY = contentY + (contentH - totalMenuH) / 2;
+        // The right column also starts at topH and is vertically centered in contentH.
+        // The menu block should be centered in the SAME content area for alignment.
+        // We need the right column's actual top Y to align with.
+        // Use a consistent contentY (below topbar) for both centering calculations.
+        int baseY = topH + (contentH - totalMenuH) / 2;
 
         // Title
         paintTitle(g, menuX, menuW, baseY);
@@ -238,14 +256,15 @@ public final class GridRenderer {
         // Small buttons
         paintSmallBtns(g, menuX, baseY + titleBlockH + titleGap + playH + btnGap + singleH + btnGap, menuW, smallH, mx, my);
 
-        // Right panels — vertically centered in content area
+        // Right panels: raised ~40px above center for better visual balance
         boolean isOn = sState == 1;
         int statusH = isOn ? 110 : 70;
         int nc = (nData == null) ? 0 : Math.min(4, nData.size());
         int newsH = 18 + 12 + 9 + (nc == 0 ? 24 : nc * 30 + 8) + 18;
         int panelGap = 10;
+        // Raise the right panels: shift upward by ~40px from true center for better visual balance
         int rightTotalH = statusH + panelGap + newsH;
-        int rightY = contentY + (contentH - rightTotalH) / 2;
+        int rightY = topH + (contentH - rightTotalH) / 2 - 40;
         paintStatusPanel(g, rightX, rightY, rightW, statusH, sState, onl, mxP);
         paintNewsPanel(g, rightX, rightY + statusH + panelGap, rightW, newsH, nData);
 
@@ -428,8 +447,9 @@ public final class GridRenderer {
         int tH = 4 + fmT.getHeight() + 4;
         int tY = baseY + bh - 2;
         int tX = menuX + (menuW - tW) / 2;
+        // Tag: darker background for better contrast
         fillRR(g, tX, tY, tW, tH, 4, ACCENT_BORDER);
-        fillRR(g, tX + 1, tY + 1, tW - 2, tH - 2, 3, ACCENT_DIM);
+        fillRR(g, tX + 1, tY + 1, tW - 2, tH - 2, 3, new Color(8, 12, 10, 200));
         g.setColor(ACCENT);
         drawSpaced(g, tag, tX + tpx + (tW - tpx * 2 - ttw) / 2, tY + 4 + fmT.getAscent(), tLs, ACCENT);
     }
@@ -625,72 +645,45 @@ public final class GridRenderer {
         g.fillOval(x, y, sz, sz);
         g.setColor(hov ? ACCENT_DIM : new Color(12, 16, 14, 179));
         g.fillOval(x + 1, y + 1, sz - 2, sz - 2);
-        // Icon (18x18, centered in circle)
+        // Icon color
         Color ic = hov ? ACCENT : TEXT_MUTED;
+        int icSz = 18;
+        int icX = x + (sz - icSz) / 2;
+        int icY = y + (sz - icSz) / 2;
+        // Telegram: circle is part of the pre-cached sprite, just tint it
+        // Discord and Globe: same approach
         BufferedImage icon;
         switch (type) {
             case "telegram" -> icon = icTg;
             case "discord"  -> icon = icDc;
             default          -> icon = icGlobe;
         }
-        drawIcon(g, icon, x + (sz - 18) / 2, y + (sz - 18) / 2, 18, ic);
+        drawIcon(g, icon, icX, icY, icSz, ic);
     }
 
-    /* ═══════════════════ ICON DRAWING (from pre-cached images) ═══════════════════ */
-    /** Draw a pre-cached white icon with a color tint. */
+    /* ═══════════════════ ICON DRAWING ═══════════════════ */
+    /** Draw a pre-cached white icon, scaled to sz, tinted to color. */
     private static void drawIcon(Graphics2D g, BufferedImage whiteIcon, int x, int y, int sz, Color tint) {
-        if (sz == 24 && whiteIcon.getWidth() == 24) {
-            // Exact size match — fast path, just tint
-            tintIcon(g, whiteIcon, x, y, tint);
-        } else if (sz < 24) {
-            // Scale down using pre-cached image
-            BufferedImage scaled = new BufferedImage(sz, sz, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D sg = scaled.createGraphics();
+        BufferedImage target = whiteIcon;
+        if (sz != whiteIcon.getWidth()) {
+            target = new BufferedImage(sz, sz, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D sg = target.createGraphics();
             sg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
             sg.drawImage(whiteIcon, 0, 0, sz, sz, null);
             sg.dispose();
-            tintIcon(g, scaled, x, y, tint);
-        } else {
-            tintIcon(g, whiteIcon, x, y, sz, sz, tint);
         }
-    }
-
-    /** Tint a white icon to the desired color and draw it at (x,y). */
-    private static void tintIcon(Graphics2D g, BufferedImage whiteIcon, int x, int y, Color tint) {
-        int w = whiteIcon.getWidth(), h = whiteIcon.getHeight();
-        BufferedImage tinted = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        int[] px = whiteIcon.getRGB(0, 0, w, h, null, 0, w);
-        int tr = tint.getRed(), tg = tint.getGreen(), tb = tint.getBlue(), ta = tint.getAlpha();
+        int w = target.getWidth(), h = target.getHeight();
+        int[] px = target.getRGB(0, 0, w, h, null, 0, w);
+        int tr = tint.getRed(), tg = tint.getGreen(), tb = tint.getBlue();
         for (int i = 0; i < px.length; i++) {
             int a = (px[i] >> 24) & 0xFF;
-            if (a > 0) {
-                // Luminance-weighted tinting for better results
-                int r = (px[i] >> 16) & 0xFF;
-                int gv = (px[i] >> 8) & 0xFF;
-                int b = px[i] & 0xFF;
-                float lum = (r * 0.299f + gv * 0.587f + b * 0.114f) / 255f;
-                int fr = (int)(tr * lum);
-                int fg = (int)(tg * lum);
-                int fb = (int)(tb * lum);
-                int fa = (int)(a * (ta / 255f));
-                px[i] = (fa << 24) | (fr << 16) | (fg << 8) | fb;
-            }
+            if (a > 0) px[i] = (a << 24) | (tr << 16) | (tg << 8) | tb;
         }
-        tinted.setRGB(0, 0, w, h, px, 0, w);
-        g.drawImage(tinted, x, y, null);
+        target.setRGB(0, 0, w, h, px, 0, w);
+        g.drawImage(target, x, y, null);
     }
 
-    /** Tint and scale in one step. */
-    private static void tintIcon(Graphics2D g, BufferedImage whiteIcon, int x, int y, int w, int h, Color tint) {
-        BufferedImage tinted = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D tg = tinted.createGraphics();
-        tg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        tg.drawImage(whiteIcon, 0, 0, w, h, null);
-        tg.dispose();
-        tintIcon(g, tinted, x, y, tint);
-    }
-
-    /** Render a Path2D into a white-on-transparent BufferedImage at 24x24. */
+    /** Render a Path2D into a white-on-transparent BufferedImage. */
     private static BufferedImage renderIcon(Path2D path, int size, Color color) {
         BufferedImage img = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
