@@ -637,48 +637,214 @@ public final class GridRenderer {
         g.setStroke(new BasicStroke(1));
     }
 
+    /** Telegram — exact SVG path from mockup, offset to center in 24x24 viewBox */
     private void drawTgIc(Graphics2D g, int cx, int cy, int sz, Color c) {
         float sc = sz / 24f;
-        float s = sc * 0.85f;
         g.setColor(c);
-        Path2D p = new Path2D.Float();
-        p.moveTo(cx - 9 * s, cy);
-        p.lineTo(cx + 9 * s, cy - 6 * s);
-        p.lineTo(cx + 3 * s, cy);
-        p.lineTo(cx + 9 * s, cy + 6 * s);
-        p.lineTo(cx - 9 * s, cy);
-        p.moveTo(cx - 3 * s, cy);
-        p.lineTo(cx + s, cy - 3 * s);
-        p.lineTo(cx + 3 * s, cy);
-        p.closePath();
+        Path2D p = svgPath(
+            "M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0" +
+            "a12 12 0 00-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325" +
+            "c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23" +
+            "-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91" +
+            ".177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024" +
+            "c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44" +
+            "-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014" +
+            " 3.332-1.386 4.025-1.627 4.476-1.635z"
+        );
+        // Center the 24x24 path around (cx, cy)
+        g.translate(cx - 12 * sc, cy - 12 * sc);
+        g.scale(sc, sc);
         g.fill(p);
+        g.scale(1 / sc, 1 / sc);
+        g.translate(-(cx - 12 * sc), -(cy - 12 * sc));
     }
 
+    /** Discord — exact SVG path from mockup */
     private void drawDcIc(Graphics2D g, int cx, int cy, int sz, Color c) {
         float sc = sz / 24f;
         g.setColor(c);
-        g.setStroke(new BasicStroke(Math.max(1f, sz * 0.06f)));
-        int r = (int) (9 * sc);
-        g.drawOval(cx - r, cy - r, r * 2, r * 2);
-        int ew = (int) (2.5f * sc), eh = (int) (3 * sc);
-        g.fillOval(cx - (int) (4 * sc) - ew / 2, cy - (int) (1.5f * sc) - eh / 2, ew, eh);
-        g.fillOval(cx + (int) (4 * sc) - ew / 2, cy - (int) (1.5f * sc) - eh / 2, ew, eh);
-        g.setStroke(new BasicStroke(Math.max(1f, 1.2f * sc), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g.draw(new Arc2D.Float(cx - 4 * sc, cy + sc, 8 * sc, 5 * sc, 200, 140, Arc2D.OPEN));
-        g.setStroke(new BasicStroke(1));
+        Path2D p = svgPath(
+            "M20.317 4.37a19.79 19.79 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.445.865-.608 1.25" +
+            "-1.845-.276-3.68-.276-5.487 0-.164-.393-.406-.874-.618-1.25a.077.077 0 00-.078-.037" +
+            " 19.74 19.74 0 00-4.885 1.515.07.07 0 00-.032.028C.533 9.046-.319 13.58.099 18.058" +
+            "a.082.082 0 00.031.056c2.053 1.508 4.041 2.423 5.993 3.029a.078.078 0 00.084-.028" +
+            "c.462-.63.873-1.295 1.226-1.994a.076.076 0 00-.042-.106c-.653-.247-1.274-.549-1.872-.892" +
+            "a.077.077 0 01-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 01.078-.01" +
+            "c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 01.078.009c.12.1.246.198.373.293" +
+            "a.077.077 0 01-.007.127 12.3 12.3 0 01-1.873.892.076.076 0 00-.041.107" +
+            "c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028c1.961-.606 3.95-1.522 6.002-3.029" +
+            "a.077.077 0 00.031-.055c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.029z" +
+            "M8.02 15.33c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.956-2.419 2.157-2.419" +
+            " 1.21 0 2.176 1.096 2.157 2.42 0 1.332-.956 2.418-2.157 2.418zm7.975 0" +
+            "c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.955-2.419 2.157-2.419" +
+            " 1.21 0 2.176 1.096 2.157 2.42 0 1.332-.946 2.418-2.157 2.418z"
+        );
+        g.translate(cx - 12 * sc, cy - 12 * sc);
+        g.scale(sc, sc);
+        g.fill(p);
+        g.scale(1 / sc, 1 / sc);
+        g.translate(-(cx - 12 * sc), -(cy - 12 * sc));
     }
 
+    /** Globe — exact SVG path from mockup */
     private void drawGlobeIc(Graphics2D g, int cx, int cy, int sz, Color c) {
         float sc = sz / 24f;
-        int r = (int) (10 * sc);
         g.setColor(c);
-        g.setStroke(new BasicStroke(Math.max(1f, 1.2f * sc)));
-        g.drawOval(cx - r, cy - r, r * 2, r * 2);
-        g.draw(new Line2D.Float(cx - r, cy, cx + r, cy));
-        g.draw(new Line2D.Float(cx, cy - r, cx, cy + r));
-        g.draw(new Arc2D.Float(cx - r, cy - r, r * 2, r * 2, 60, 60, Arc2D.OPEN));
-        g.draw(new Arc2D.Float(cx - r, cy - r, r * 2, r * 2, -120, 60, Arc2D.OPEN));
-        g.setStroke(new BasicStroke(1));
+        Path2D p = svgPath(
+            "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" +
+            "m-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2z" +
+            "m6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7" +
+            "h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"
+        );
+        g.translate(cx - 12 * sc, cy - 12 * sc);
+        g.scale(sc, sc);
+        g.fill(p);
+        g.scale(1 / sc, 1 / sc);
+        g.translate(-(cx - 12 * sc), -(cy - 12 * sc));
+    }
+
+    /* ===== SVG PATH PARSER ===== */
+    /** Minimal SVG path parser — handles M, L, H, V, C, S, Q, T, A, Z commands. */
+    private static Path2D svgPath(String d) {
+        Path2D p = new Path2D.Float();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(
+            "[MmLlHhVvCcSsQqTtAaZz]|[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?"
+        ).matcher(d);
+        java.util.ArrayList<String> tokens = new java.util.ArrayList<>();
+        while (m.find()) tokens.add(m.group());
+        int i = 0;
+        float lastX = 0, lastY = 0, startX = 0, startY = 0;
+        float lastCx = 0, lastCy = 0; // for S/T smooth curves
+        char lastCmd = ' ';
+        while (i < tokens.size()) {
+            String t = tokens.get(i++);
+            char cmd = t.charAt(0);
+            boolean rel = Character.isLowerCase(cmd);
+            char upper = Character.toUpperCase(cmd);
+            // Implicit command repetition for coordinate-only tokens
+            if (Character.isDigit(t.charAt(0)) || t.charAt(0) == '-' || t.charAt(0) == '+') {
+                if (lastCmd == 'Z' || lastCmd == 'z') cmd = 'M';
+                else cmd = lastCmd;
+                rel = Character.isLowerCase(cmd);
+                upper = Character.toUpperCase(cmd);
+                i--; // re-read this token as a number
+            }
+            float x = rel ? lastX : 0, y = rel ? lastY : 0;
+            switch (upper) {
+                case 'M' -> {
+                    x += f(tokens, i); i++; y += f(tokens, i); i++;
+                    if (rel) { x = lastX + f(tokens, i-2); y = lastY + f(tokens, i-1); }
+                    else { x = f(tokens, i-2); y = f(tokens, i-1); }
+                    p.moveTo(x, y); lastX = x; lastY = y; startX = x; startY = y;
+                    // Subsequent coordinate pairs become L
+                    lastCmd = 'L'; continue;
+                }
+                case 'L' -> {
+                    float dx = f(tokens, i++); float dy = f(tokens, i++);
+                    x = rel ? lastX + dx : dx; y = rel ? lastY + dy : dy;
+                    p.lineTo(x, y); break;
+                }
+                case 'H' -> { float hv = f(tokens, i++); x = rel ? lastX + hv : hv; p.lineTo(x, lastY); y = lastY; break; }
+                case 'V' -> { float vv = f(tokens, i++); y = rel ? lastY + vv : vv; p.lineTo(lastX, y); x = lastX; break; }
+                case 'C' -> {
+                    float x1 = f(tokens, i++), y1 = f(tokens, i++);
+                    float x2 = f(tokens, i++), y2 = f(tokens, i++);
+                    float x3 = f(tokens, i++), y3 = f(tokens, i++);
+                    if (rel) { x1+=lastX; y1+=lastY; x2+=lastX; y2+=lastY; x3+=lastX; y3+=lastY; }
+                    p.curveTo(x1, y1, x2, y2, x3, y3);
+                    lastCx = x2; lastCy = y2; x = x3; y = y3; break;
+                }
+                case 'S' -> {
+                    float sx = rel ? lastX : 0, sy = rel ? lastY : 0;
+                    float x2 = f(tokens, i++), y2 = f(tokens, i++);
+                    float x3 = f(tokens, i++), y3 = f(tokens, i++);
+                    if (rel) { x2+=lastX; y2+=lastY; x3+=lastX; y3+=lastY; }
+                    float rx = 2*lastX - lastCx, ry = 2*lastY - lastCy;
+                    p.curveTo(rx, ry, x2, y2, x3, y3);
+                    lastCx = x2; lastCy = y2; x = x3; y = y3; break;
+                }
+                case 'Q' -> {
+                    float x1 = f(tokens, i++), y1 = f(tokens, i++);
+                    float x2 = f(tokens, i++), y2 = f(tokens, i++);
+                    if (rel) { x1+=lastX; y1+=lastY; x2+=lastX; y2+=lastY; }
+                    p.quadTo(x1, y1, x2, y2);
+                    lastCx = x1; lastCy = y1; x = x2; y = y2; break;
+                }
+                case 'T' -> {
+                    float x2 = f(tokens, i++), y2 = f(tokens, i++);
+                    if (rel) { x2+=lastX; y2+=lastY; }
+                    float rx = 2*lastX - lastCx, ry = 2*lastY - lastCy;
+                    p.quadTo(rx, ry, x2, y2);
+                    lastCx = rx; lastCy = ry; x = x2; y = y2; break;
+                }
+                case 'A' -> {
+                    float rx = f(tokens, i++), ry = f(tokens, i++);
+                    float rot = f(tokens, i++);
+                    float large = f(tokens, i++), sweep = f(tokens, i++);
+                    float ax = f(tokens, i++), ay = f(tokens, i++);
+                    if (rel) { ax+=lastX; ay+=lastY; }
+                    arcTo(p, lastX, lastY, rx, ry, rot, large > 0.5f, sweep > 0.5f, ax, ay);
+                    x = ax; y = ay; break;
+                }
+                case 'Z' -> { p.closePath(); x = startX; y = startY; break; }
+                default -> { lastX = x; lastY = y; lastCmd = cmd; continue; }
+            }
+            lastX = x; lastY = y; lastCmd = cmd;
+        }
+        return p;
+    }
+
+    private static float f(java.util.List<String> t, int i) {
+        return i < t.size() ? Float.parseFloat(t.get(i)) : 0f;
+    }
+
+    /** Convert arc (A/a) to cubic beziers and append to path. */
+    private static void arcTo(Path2D p, float x0, float y0, float rx, float ry, float phi,
+                              boolean largeArc, boolean sweep, float x1, float y1) {
+        if (rx == 0 || ry == 0) { p.lineTo(x1, y1); return; }
+        float cosPhi = (float) Math.cos(phi), sinPhi = (float) Math.sin(phi);
+        float dx2 = (x0 - x1) / 2, dy2 = (y0 - y1) / 2;
+        float x1p = cosPhi * dx2 + sinPhi * dy2;
+        float y1p = -sinPhi * dx2 + cosPhi * dy2;
+        float rx2 = rx * rx, ry2 = ry * ry, x1p2 = x1p * x1p, y1p2 = y1p * y1p;
+        float lambda = x1p2 / rx2 + y1p2 / ry2;
+        if (lambda > 1) { float s = (float) Math.sqrt(lambda); rx *= s; ry *= s; rx2 = rx*rx; ry2 = ry*ry; }
+        float num = Math.max(0, rx2 * ry2 - rx2 * y1p2 - ry2 * x1p2);
+        float den = rx2 * y1p2 + ry2 * x1p2;
+        float sq = (float) Math.sqrt(num / den);
+        if (largeArc == sweep) sq = -sq;
+        float cxp = sq * rx * y1p / ry;
+        float cyp = -sq * ry * x1p / rx;
+        float cx0 = cosPhi * cxp - sinPhi * cyp + (x0 + x1) / 2;
+        float cy0 = sinPhi * cxp + cosPhi * cyp + (y0 + y1) / 2;
+        float theta1 = angle(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry);
+        float dTheta = angle((x1p - cxp) / rx, (y1p - cyp) / ry, (-x1p - cxp) / rx, (-y1p - cyp) / ry);
+        if (!sweep && dTheta > 0) dTheta -= 2 * (float) Math.PI;
+        if (sweep && dTheta < 0) dTheta += 2 * (float) Math.PI;
+        int n = (int) Math.ceil(Math.abs(dTheta) / (Math.PI / 2));
+        float step = dTheta / n;
+        float t = step / 2;
+        float alpha = (float) Math.sin(t) * (1 + 4f/3f * (1 - Math.cos(t)) / Math.cos(t));
+        for (int i = 0; i < n; i++) {
+            float th = theta1 + i * step;
+            float cosTh = (float) Math.cos(th), sinTh = (float) Math.sin(th);
+            float cosTh2 = (float) Math.cos(th + step), sinTh2 = (float) Math.sin(th + step);
+            float ep0x = cosTh - alpha * sinTh, ep0y = sinTh + alpha * cosTh;
+            float ep1x = cosTh2 + alpha * sinTh2, ep1y = sinTh2 - alpha * cosTh2;
+            float cp0x = rx * (cosTh + alpha * sinTh), cp0y = ry * (sinTh - alpha * cosTh);
+            float cp1x = rx * (cosTh2 - alpha * sinTh2), cp1y = ry * (sinTh2 + alpha * cosTh2);
+            float px0 = cosPhi * cp0x - sinPhi * cp0y + cx0;
+            float py0 = sinPhi * cp0x + cosPhi * cp0y + cy0;
+            float px1 = cosPhi * cp1x - sinPhi * cp1y + cx0;
+            float py1 = sinPhi * cp1x + cosPhi * cp1y + cy0;
+            float ex = cosPhi * (rx * ep1x) - sinPhi * (ry * ep1y) + cx0;
+            float ey = sinPhi * (rx * ep1x) + cosPhi * (ry * ep1y) + cy0;
+            p.curveTo(px0, py0, px1, py1, ex, ey);
+        }
+    }
+
+    private static float angle(float ux, float uy, float vx, float vy) {
+        return (float) Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy);
     }
 
     /* ===== UTILS ===== */
