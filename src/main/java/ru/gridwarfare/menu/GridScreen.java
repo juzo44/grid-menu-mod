@@ -31,13 +31,13 @@ import java.util.List;
  * GRID Custom Main Menu.
  *
  * <p>All Java2D rendering happens on a <b>background thread</b> so that AWT never
- * runs on Minecraft’s render thread — this prevents the AWT / LWJGL-OpenGL
+ * runs on Minecraft's render thread - this prevents the AWT / LWJGL-OpenGL
  * deadlock that made the game freeze on the previous version.</p>
  *
  * <p>Flow per frame:
  * <ol>
  *   <li>Consume any pending {@link Frame} from the background thread.</li>
- *   <li>Check hover changes → request re-render if needed.</li>
+ *   <li>Check hover changes - request re-render if needed.</li>
  *   <li>If a re-render is needed and none is in progress, fire a daemon thread.</li>
  *   <li>Draw the latest texture stretched to the full window (GPU bilinear upscale).</li>
  * </ol>
@@ -52,15 +52,15 @@ public final class GridScreen extends Screen {
     private static final long NEWS_REFRESH_MS = 60_000L;
     private static final long AUTH_REFRESH_MS = 30_000L;
 
-    /* ════ renderer ════ */
+    /* renderer */
     private GridRenderer renderer;
     private volatile boolean rendererReady;
 
-    /* ════ texture ════ */
+    /* texture */
     private DynamicTexture dynTex;
     private int textureId = -1;
 
-    /* ════ background-thread communication ════ */
+    /* background-thread communication */
     private volatile boolean needsRender = true;
     private volatile boolean isRendering  = false;
     private volatile boolean closed       = false;
@@ -77,15 +77,15 @@ public final class GridScreen extends Screen {
 
     private volatile Frame pendingFrame;
 
-    /* ════ active button state (read-only from render/click threads) ════ */
-    private List<GridRenderer.BtnRect> activeButtons = Collections.emptyList();
+    /* active button state (read-only from render/click threads) */
+    private volatile List<GridRenderer.BtnRect> activeButtons = Collections.emptyList();
     private int lastHovered = -1;
 
-    /* ════ server data change tracking ════ */
+    /* server data change tracking */
     private int lastServerState = -1;
     private int lastOnline     = -1;
 
-    /* ════ API refresh timestamps ════ */
+    /* API refresh timestamps */
     private long newsFetchedAt;
     private long authFetchedAt;
 
@@ -93,7 +93,7 @@ public final class GridScreen extends Screen {
         super(Component.literal("GRID"));
     }
 
-    /* ════ INIT ════ */
+    /* INIT */
     @Override
     protected void init() {
         newsFetchedAt = Util.getMillis();
@@ -101,7 +101,7 @@ public final class GridScreen extends Screen {
 
         if (renderer == null) {
             renderer = new GridRenderer();
-            /* Initialise renderer on a background thread — AWT class-loading
+            /* Initialise renderer on a background thread - AWT class-loading
                can deadlock with LWJGL if it happens on the render thread. */
             Thread t = new Thread(() -> {
                 try {
@@ -121,7 +121,7 @@ public final class GridScreen extends Screen {
         ServerStatusManager.start();
     }
 
-    /* ════ TICK ════ */
+    /* TICK */
     @Override
     public void tick() {
         ServerStatusManager.tick();
@@ -142,18 +142,17 @@ public final class GridScreen extends Screen {
         }
     }
 
-    /* ════ CLEANUP ════ */
+    /* CLEANUP */
     @Override
     public void removed() {
         closed = true;
         ServerStatusManager.stop();
         if (dynTex != null) { dynTex.close(); dynTex = null; textureId = -1; }
-        /* Close any frame that the render thread hasn’t consumed yet. */
         Frame f = pendingFrame;
         if (f != null) { if (f.image != null) f.image.close(); pendingFrame = null; }
     }
 
-    /* ════ RENDER (runs every frame on the render thread) ════ */
+    /* RENDER (runs every frame on the render thread) */
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
         /* 1. Consume the latest completed frame from the background thread. */
@@ -164,10 +163,11 @@ public final class GridScreen extends Screen {
             activeButtons = frame.buttons;
         }
 
-        /* 2. Hover detection → request re-render when hover changes. */
+        /* 2. Hover detection - request re-render when hover changes. */
         int hovered = -1;
-        for (int i = 0; i < activeButtons.size(); i++) {
-            if (activeButtons.get(i).contains(mx, my)) { hovered = i; break; }
+        List<GridRenderer.BtnRect> btns = activeButtons;
+        for (int i = 0; i < btns.size(); i++) {
+            if (btns.get(i).contains(mx, my)) { hovered = i; break; }
         }
         if (hovered != lastHovered) {
             lastHovered = hovered;
@@ -184,8 +184,8 @@ public final class GridScreen extends Screen {
                     if (closed) return;
                     BufferedImage img  = renderer.render(fw, fh, fmx, fmy);
                     NativeImage   ni   = toNativeImage(img);
-                    List<GridRenderer.BtnRect> btns = new ArrayList<>(renderer.buttons);
-                    if (!closed) pendingFrame = new Frame(ni, btns);
+                    List<GridRenderer.BtnRect> btns2 = new ArrayList<>(renderer.buttons);
+                    if (!closed) pendingFrame = new Frame(ni, btns2);
                 } catch (Throwable e) {
                     System.err.println("[GRID] Render error: " + e);
                 } finally {
@@ -210,7 +210,7 @@ public final class GridScreen extends Screen {
     @Override
     public boolean isPauseScreen() { return false; }
 
-    /* ════ TEXTURE UPLOAD (render thread only) ════ */
+    /* TEXTURE UPLOAD (render thread only) */
     private void uploadTexture(NativeImage ni) {
         try {
             if (dynTex == null) {
@@ -220,7 +220,7 @@ public final class GridScreen extends Screen {
             }
             dynTex.upload();
             textureId = dynTex.getId();
-            /* Ensure linear filtering so the 960×540 texture upscales smoothly. */
+            /* Ensure linear filtering so the texture upscales smoothly if window > 1920x1080. */
             setLinearFilter();
         } catch (Throwable e) {
             System.err.println("[GRID] Texture upload error: " + e);
@@ -230,7 +230,6 @@ public final class GridScreen extends Screen {
     private void setLinearFilter() {
         try {
             RenderSystem.setShaderTexture(0, textureId);
-            /* GL_LINEAR = 0x2601 */
             org.lwjgl.opengl.GL11.glTexParameteri(
                     org.lwjgl.opengl.GL11.GL_TEXTURE_2D,
                     org.lwjgl.opengl.GL11.GL_TEXTURE_MIN_FILTER,
@@ -242,7 +241,7 @@ public final class GridScreen extends Screen {
         } catch (Throwable ignored) {}
     }
 
-    /* ════ FULLSCREEN BLIT ════ */
+    /* FULLSCREEN BLIT */
     private void blitFullscreen(GuiGraphics g, int x, int y, int w, int h) {
         RenderSystem.setShaderTexture(0, textureId);
         RenderSystem.enableBlend();
@@ -259,7 +258,7 @@ public final class GridScreen extends Screen {
         BufferUploader.drawWithGlobalProgram(builder.buildOrThrow());
     }
 
-    /* ════ PIXEL CONVERSION (background thread) ════ */
+    /* PIXEL CONVERSION (background thread) - ARGB to ABGR with direct IntBuffer for speed */
     private static NativeImage toNativeImage(BufferedImage img) throws Exception {
         int tw = img.getWidth(), th = img.getHeight();
         NativeImage ni = new NativeImage(tw, th, false);
@@ -274,7 +273,7 @@ public final class GridScreen extends Screen {
         return ni;
     }
 
-    /* ════ CLICK HANDLING ════ */
+    /* CLICK HANDLING */
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         if (button != 0) return super.mouseClicked(mx, my, button);
@@ -301,7 +300,7 @@ public final class GridScreen extends Screen {
         }
     }
 
-    /* ════ API CALLS ════ */
+    /* API CALLS */
     private void loadAuth() {
         authFetchedAt = Util.getMillis();
         Thread t = new Thread(() -> {
@@ -329,7 +328,7 @@ public final class GridScreen extends Screen {
         t.start();
     }
 
-    /* ════ NAVIGATION HELPERS ════ */
+    /* NAVIGATION HELPERS */
     private void connectToServer() {
         try {
             ServerData data = new ServerData("GRID", MAIN_IP, ServerData.Type.OTHER);
