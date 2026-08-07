@@ -38,18 +38,18 @@ public final class GridRenderer {
     }
 
     /* ═══════════════════ COLORS (exact HTML values) ═══════════════════ */
-    private static final Color ACCENT        = new Color(0x68, 0xC2, 0x84);
-    private static final Color ACCENT_HOVER  = new Color(0x7C, 0xD0, 0x90);
-    private static final Color ACCENT_DARK   = new Color(0x4A, 0x9C, 0x66);
-    private static final Color ACCENT_DARKER = new Color(0x38, 0x7A, 0x50);
+    private static final Color ACCENT        = new Color(0x5A, 0xB0, 0x72); // slightly darker than #68C284
+    private static final Color ACCENT_HOVER  = new Color(0x6C, 0xBE, 0x82);
+    private static final Color ACCENT_DARK   = new Color(0x3E, 0x8E, 0x58);
+    private static final Color ACCENT_DARKER = new Color(0x2C, 0x72, 0x44);
     private static final Color BG_DEEP       = new Color(0x0B, 0x0F, 0x0C);
     private static final Color TEXT_MAIN     = new Color(0xF3, 0xF6, 0xF3);
     private static final Color TEXT_MUTED    = new Color(0x8B, 0x97, 0x8F);
     private static final Color TEXT_DIM      = new Color(0x5A, 0x65, 0x5E);
     private static final Color LINE          = new Color(0x34, 0x40, 0x38);
     private static final Color PANEL_BG      = new Color(12, 16, 14, 209);  // 0.82*255≈209
-    private static final Color ACCENT_DIM    = new Color(104, 194, 132, 38); // 0.15*255≈38
-    private static final Color ACCENT_BORDER = new Color(104, 194, 132, 77); // 0.30*255≈77
+    private static final Color ACCENT_DIM    = new Color(90, 176, 114, 38); // 0.15*255≈38
+    private static final Color ACCENT_BORDER = new Color(90, 176, 114, 77); // 0.30*255≈77
     private static final Color BTN_SEC_BG    = new Color(12, 16, 14, 191); // 0.75*255≈191
     private static final Color BTN_SEC_HOVER = new Color(18, 24, 20, 217); // 0.85*255≈217
     private static final Color BTN_SM_BG     = new Color(12, 16, 14, 166); // 0.65*255≈166
@@ -307,20 +307,7 @@ public final class GridRenderer {
 
     /* ═══════════════════ TOP BAR ═══════════════════ */
     private void paintTopbar(Graphics2D g, int W, int pad, int topPad, JsonObject auth) {
-        // Brand mark — 32x32 octagonal clip
-        int bm = 32;
-        int cut = 5;
-        drawClippedRect(g, pad, topPad, bm, bm, cut, ACCENT);
-        g.setFont(f900.deriveFont(17f));
-        g.setColor(BG_DEEP);
-        FontMetrics fmG = g.getFontMetrics();
-        String gL = "G";
-        g.drawString(gL, pad + (bm - fmG.stringWidth(gL)) / 2, topPad + (bm + fmG.getAscent()) / 2 - fmG.getDescent());
-        // Brand text
-        g.setFont(f700.deriveFont(13f));
-        int brandTextY = topPad + bm / 2 + (g.getFontMetrics().getAscent() + g.getFontMetrics().getDescent()) / 2 - g.getFontMetrics().getDescent();
-        drawSpaced(g, "GRID", pad + bm + 12, brandTextY, 3, TEXT_MAIN);
-        // Auth card
+        // Brand removed — only auth card in top bar
         paintAuthCard(g, W, pad, topPad, auth);
     }
 
@@ -428,8 +415,9 @@ public final class GridRenderer {
         int tH = 4 + fmT.getHeight() + 4;
         int tY = baseY + bh - 2;
         int tX = menuX + (menuW - tW) / 2;
-        // Tag: transparent background with subtle accent border
-        fillRR(g, tX, tY, tW, tH, 4, new Color(104, 194, 132, 30));
+        // Tag: semi-transparent accent background with border (HTML: accent-dim bg + accent-border)
+        fillRR(g, tX, tY, tW, tH, 4, new Color(90, 176, 114, 60));
+        fillRR(g, tX + 1, tY + 1, tW - 2, tH - 2, 3, new Color(90, 176, 114, 35));
         g.setColor(ACCENT);
         drawSpaced(g, tag, tX + tpx + (tW - tpx * 2 - ttw) / 2, tY + 4 + fmT.getAscent(), tLs, ACCENT);
     }
