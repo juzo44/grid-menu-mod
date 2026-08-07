@@ -38,18 +38,18 @@ public final class GridRenderer {
     }
 
     /* ═══════════════════ COLORS (exact HTML values) ═══════════════════ */
-    private static final Color ACCENT        = new Color(0x5A, 0xB0, 0x72); // slightly darker than #68C284
-    private static final Color ACCENT_HOVER  = new Color(0x6C, 0xBE, 0x82);
-    private static final Color ACCENT_DARK   = new Color(0x3E, 0x8E, 0x58);
-    private static final Color ACCENT_DARKER = new Color(0x2C, 0x72, 0x44);
+    private static final Color ACCENT        = new Color(0x40, 0x87, 0x47); // #408747
+    private static final Color ACCENT_HOVER  = new Color(0x50, 0x96, 0x56);
+    private static final Color ACCENT_DARK   = new Color(0x30, 0x70, 0x38);
+    private static final Color ACCENT_DARKER = new Color(0x22, 0x5C, 0x2B);
     private static final Color BG_DEEP       = new Color(0x0B, 0x0F, 0x0C);
     private static final Color TEXT_MAIN     = new Color(0xF3, 0xF6, 0xF3);
     private static final Color TEXT_MUTED    = new Color(0x8B, 0x97, 0x8F);
     private static final Color TEXT_DIM      = new Color(0x5A, 0x65, 0x5E);
     private static final Color LINE          = new Color(0x34, 0x40, 0x38);
     private static final Color PANEL_BG      = new Color(12, 16, 14, 209);  // 0.82*255≈209
-    private static final Color ACCENT_DIM    = new Color(90, 176, 114, 38); // 0.15*255≈38
-    private static final Color ACCENT_BORDER = new Color(90, 176, 114, 77); // 0.30*255≈77
+    private static final Color ACCENT_DIM    = new Color(64, 135, 71, 38); // 0.15*255≈38
+    private static final Color ACCENT_BORDER = new Color(64, 135, 71, 77); // 0.30*255≈77
     private static final Color BTN_SEC_BG    = new Color(12, 16, 14, 191); // 0.75*255≈191
     private static final Color BTN_SEC_HOVER = new Color(18, 24, 20, 217); // 0.85*255≈217
     private static final Color BTN_SM_BG     = new Color(12, 16, 14, 166); // 0.65*255≈166
@@ -415,11 +415,10 @@ public final class GridRenderer {
         int tH = 4 + fmT.getHeight() + 4;
         int tY = baseY + bh - 2;
         int tX = menuX + (menuW - tW) / 2;
-        // Tag: semi-transparent accent background with border (HTML: accent-dim bg + accent-border)
-        fillRR(g, tX, tY, tW, tH, 4, new Color(90, 176, 114, 60));
-        fillRR(g, tX + 1, tY + 1, tW - 2, tH - 2, 3, new Color(90, 176, 114, 35));
-        g.setColor(ACCENT);
-        drawSpaced(g, tag, tX + tpx + (tW - tpx * 2 - ttw) / 2, tY + 4 + fmT.getAscent(), tLs, ACCENT);
+        // Tag: solid accent background, dark text
+        fillRR(g, tX, tY, tW, tH, 4, ACCENT);
+        g.setColor(BG_DEEP);
+        drawSpaced(g, tag, tX + tpx + (tW - tpx * 2 - ttw) / 2, tY + 4 + fmT.getAscent(), tLs, BG_DEEP);
     }
 
     /* ═══════════════════ PLAY BUTTON ═══════════════════ */
