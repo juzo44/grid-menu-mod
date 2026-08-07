@@ -14,24 +14,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Optimised Java2D renderer — pixel-perfect port of HTML mockup.
- * <p>
- * Key optimisations for weak PCs:
- * <ul>
- *   <li>Renders to BASE_W x BASE_H (960x540) — 75% fewer pixels than 1920x1080</li>
- *   <li>Caches the static background layer (photo + overlay + vignette)</li>
- *   <li>Only re-renders UI layer when hover or data changes</li>
- * </ul>
+ * Pixel-perfect Java2D renderer — port of HTML mockup.
+ * Renders at 960x540 (half of 1920x1080), GPU upscales.
+ * Optimised: bg cached, reusable BufferedImage, no per-frame alloc.
  */
 public final class GridRenderer {
 
-    /* == Base render resolution (half of 1920x1080) == */
     public static final int BASE_W = 960;
     public static final int BASE_H = 540;
+    private static final float SC = 0.5f;
 
-    /* == BUTTON (for click detection, in screen-space) == */
     public static final class BtnRect {
-        public final int x, y, w, h;
+        public int x, y, w, h;
         public final String id;
         public BtnRect(int x, int y, int w, int h, String id) {
             this.x = x; this.y = y; this.w = w; this.h = h; this.id = id;
@@ -41,7 +35,6 @@ public final class GridRenderer {
         }
     }
 
-    /* == COLORS (from CSS :root) == */
     private static final Color ACCENT        = new Color(0x68, 0xC2, 0x84);
     private static final Color ACCENT_HOVER  = new Color(0x7C, 0xD0, 0x90);
     private static final Color ACCENT_DARK   = new Color(0x4A, 0x9C, 0x66);
@@ -58,53 +51,42 @@ public final class GridRenderer {
     private static final Color BTN_SEC_HOVER = new Color(18, 24, 20, 217);
     private static final Color BTN_SM_BG     = new Color(12, 16, 14, 166);
     private static final Color BTN_SM_HOVER  = new Color(18, 24, 20, 204);
+    private static final Color NEWS_LINE     = new Color(52, 64, 56, 102);
 
-    /* == FONTS (at base resolution) == */
     private Font f400, f500, f600, f700, f900;
-    private boolean fontsOk;
     private BufferedImage bgPhoto;
-
-    /* Data */
     private JsonObject authData;
     private JsonArray newsData;
     private int serverState = 2;
     private int onlinePlayers;
     private int maxPlayers;
-
-    /* Cached background */
     private BufferedImage cachedBg;
-
-    /* Layout cache (recalculated on render) — in base-space */
+    private float cachedBgScale = -1;
     public final List<BtnRect> buttons = new ArrayList<>();
-
-    /* Scale factor base-space -> screen-space */
     private float screenScale = 1f;
+    private BufferedImage reusableImg;
 
     public GridRenderer() {}
 
-    /* =====================
-       INIT
-       ===================== */
     public void init() {
         System.setProperty("java.awt.headless", "true");
-        loadFonts();
-        loadBackground();
-    }
-
-    private void loadFonts() {
         try {
-            f400 = loadTtf("font/inter_400.ttf").deriveFont(Font.PLAIN, 13f);
-            f500 = loadTtf("font/inter_600.ttf").deriveFont(Font.PLAIN, 13f);
-            f600 = loadTtf("font/inter_600.ttf").deriveFont(Font.PLAIN, 13f);
-            f700 = loadTtf("font/inter_700.ttf").deriveFont(Font.PLAIN, 13f);
-            f900 = loadTtf("font/inter_700.ttf").deriveFont(Font.BOLD, 13f);
-            fontsOk = true;
+            Font b400 = loadTtf("font/inter_400.ttf");
+            Font b600 = loadTtf("font/inter_600.ttf");
+            Font b700 = loadTtf("font/inter_700.ttf");
+            f400 = b400.deriveFont(Font.PLAIN, 13f);
+            f500 = b600.deriveFont(Font.PLAIN, 13f);
+            f600 = b600.deriveFont(Font.PLAIN, 13f);
+            f700 = b700.deriveFont(Font.PLAIN, 13f);
+            f900 = b700.deriveFont(Font.BOLD, 13f);
         } catch (Exception e) {
-            fontsOk = false;
             f400 = new Font(Font.SANS_SERIF, Font.PLAIN, 13);
-            f500 = f400; f600 = f400.deriveFont(Font.BOLD);
-            f700 = f600; f900 = f700.deriveFont(Font.BOLD);
+            f500 = f600 = f400.deriveFont(Font.BOLD);
+            f700 = f900 = f600;
         }
+        try (InputStream is = MinecraftHolder.getResource("textures/gui/ui/bg_menu.png")) {
+            if (is != null) bgPhoto = ImageIO.read(is);
+        } catch (Exception ignored) { bgPhoto = null; }
     }
 
     private Font loadTtf(String path) throws IOException, FontFormatException {
@@ -113,173 +95,131 @@ public final class GridRenderer {
         }
     }
 
-    private void loadBackground() {
-        try (InputStream is = MinecraftHolder.getResource("textures/gui/ui/bg_menu.png")) {
-            if (is != null) bgPhoto = ImageIO.read(is);
-        } catch (Exception ignored) { bgPhoto = null; }
+    public void setAuth(JsonObject d) { this.authData = d; }
+    public void setNews(JsonArray d) { this.newsData = d; }
+    public void setServerStatus(int st, int on, int mx) {
+        this.serverState = st; this.onlinePlayers = on; this.maxPlayers = mx;
     }
 
-    /* Data setters */
-    public void setAuth(JsonObject data) { this.authData = data; }
-    public void setNews(JsonArray data) { this.newsData = data; }
-    public void setServerStatus(int state, int online, int max) {
-        this.serverState = state; this.onlinePlayers = online; this.maxPlayers = max;
+    public void onResize(int sw, int sh) {
+        float ns = Math.min((float) sw / BASE_W, (float) sh / BASE_H);
+        if (Math.abs(ns - cachedBgScale) > 0.01f) cachedBg = null;
     }
 
-    /**
-     * Called when the screen resizes. Recalculates scale factor and
-     * invalidates the cached background.
-     */
-    public void onResize(int screenW, int screenH) {
-        float newScale = Math.min((float)screenW / BASE_W, (float)screenH / BASE_H);
-        if (Math.abs(newScale - screenScale) > 0.01f) {
-            screenScale = newScale;
-            cachedBg = null;
-        }
-    }
-
-    /* ==============================
-       MAIN RENDER — returns image at BASE_W x BASE_H
-       ============================== */
     public BufferedImage render(int screenW, int screenH, int mx, int my) {
-        screenScale = Math.min((float)screenW / BASE_W, (float)screenH / BASE_H);
-        int W = BASE_W;
-        int H = BASE_H;
+        screenScale = Math.min((float) screenW / BASE_W, (float) screenH / BASE_H);
+        int W = BASE_W, H = BASE_H;
+        int bmx = (int) (mx / screenScale);
+        int bmy = (int) (my / screenScale);
 
-        // Convert mouse from screen-space to base-space
-        int baseMx = (int)(mx / screenScale);
-        int baseMy = (int)(my / screenScale);
+        if (reusableImg == null) reusableImg = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D cg = reusableImg.createGraphics();
+        cg.setComposite(AlphaComposite.Clear);
+        cg.fillRect(0, 0, W, H);
+        cg.dispose();
 
-        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = img.createGraphics();
-
+        Graphics2D g = reusableImg.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-
         buttons.clear();
 
-        // Scale = 0.5 (base is half of 1920x1080)
-        float sc = 0.5f;
-        int pad = Math.max(12, Math.min(20, (int)(W * 4f / 100f)));
-
-        // Background (cached)
         if (cachedBg == null) {
             cachedBg = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
             Graphics2D bg = cachedBg.createGraphics();
             bg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            drawBackground(bg, W, H, sc);
+            bg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            paintBg(bg, W, H);
             bg.dispose();
+            cachedBgScale = screenScale;
         }
         g.drawImage(cachedBg, 0, 0, null);
 
-        drawTopbar(g, W, H, sc, pad);
-        int menuW = s(440, sc);
-        int menuX = pad + (W - pad * 2 - menuW) / 2;
-        int rightColW = s(280, sc);
-        int rightX = W - pad - rightColW;
+        int pad = s(40);
+        int topH = s(60);
+        paintTopbar(g, W, pad, s(20));
 
-        // Compute Y positions
-        g.setFont(f900.deriveFont(52f * sc));
-        FontMetrics titleFm = g.getFontMetrics();
-        int titleBoxH = titleFm.getAscent() + titleFm.getDescent() + s(10, sc) + s(12, sc);
+        int contentY = topH;
+        int contentH = H - contentY;
+        int rightW = s(280);
+        int rightX = W - pad - rightW;
+        int menuW = s(440);
+        int availForMenu = rightX - pad;
+        int menuX = pad + (availForMenu - menuW) / 2;
 
-        g.setFont(f600.deriveFont((float)s(11, sc)));
-        FontMetrics tagFm = g.getFontMetrics();
-        int tagH = s(4, sc) + tagFm.getHeight() + s(4, sc);
-        int titleBlockH = titleBoxH + tagH - s(2, sc);
-        int gapTitle = s(48, sc);
-        int playH = s(72, sc);
-        int singleH = s(62, sc);
-        int smallH = s(46, sc);
-        int gapBig = s(10, sc);
-        int gapRow = s(10, sc);
+        g.setFont(f900.deriveFont(52f * SC));
+        FontMetrics tfm = g.getFontMetrics();
+        int titleBoxH = tfm.getAscent() + tfm.getDescent() + s(10) + s(12);
+        g.setFont(f600.deriveFont(11f * SC));
+        FontMetrics tagfm = g.getFontMetrics();
+        int tagH = s(4) + tagfm.getHeight() + s(4);
+        int titleBlockH = titleBoxH + tagH - s(2);
+        int titleGap = s(48);
+        int playH = s(72);
+        int singleH = s(62);
+        int smallH = s(46);
+        int btnGap = s(10);
+        int totalMenuH = titleBlockH + titleGap + playH + btnGap + singleH + btnGap + smallH;
+        int baseY = contentY + (contentH - totalMenuH) / 2;
 
-        int totalH = titleBlockH + gapTitle + playH + gapBig + singleH + gapRow + smallH;
-        int contentH = H - s(60, sc);
-        int baseY = s(60, sc) + (contentH - totalH) / 2;
+        paintTitle(g, menuX, menuW, baseY);
+        paintPlayBtn(g, menuX, baseY + titleBlockH + titleGap, menuW, playH, bmx, bmy);
+        paintSingleBtn(g, menuX, baseY + titleBlockH + titleGap + playH + btnGap, menuW, singleH, bmx, bmy);
+        paintSmallBtns(g, menuX, baseY + titleBlockH + titleGap + playH + btnGap + singleH + btnGap, menuW, smallH, bmx, bmy);
 
-        int titleY = baseY;
-        int playY = titleY + titleBlockH + gapTitle;
-        int singleY = playY + playH + gapBig;
-        int rowY = singleY + singleH + gapRow;
+        boolean isOn = serverState == 1;
+        int statusH = isOn ? s(110) : s(70);
+        int nc = (newsData == null) ? 0 : Math.min(4, newsData.size());
+        int newsH = s(18) + s(12) + s(9) + (nc == 0 ? s(24) : nc * s(30) + s(8)) + s(18);
+        int panelGap = s(10);
+        int rightTotalH = statusH + panelGap + newsH;
+        int rightY = contentY + (contentH - rightTotalH) / 2;
+        paintStatusPanel(g, rightX, rightY, rightW, statusH);
+        paintNewsPanel(g, rightX, rightY + statusH + panelGap, rightW, newsH);
 
-        drawTitle(g, menuX, menuW, titleY, sc);
-        drawPlayButton(g, menuX, playY, menuW, playH, sc, baseMx, baseMy);
-        drawSingleButton(g, menuX, singleY, menuW, singleH, sc, baseMx, baseMy);
-        drawSmallButtons(g, menuX, rowY, menuW, smallH, sc, baseMx, baseMy);
+        int socSize = s(38);
+        int socGap = s(10);
+        int socY = H - s(24) - socSize;
+        int socR = W - s(40);
+        paintSocial(g, socR - socSize * 3 - socGap * 2, socY, socSize, bmx, bmy, "telegram");
+        paintSocial(g, socR - socSize * 2 - socGap, socY, socSize, bmx, bmy, "discord");
+        paintSocial(g, socR - socSize, socY, socSize, bmx, bmy, "globe");
 
-        // Right column
-        int newsCount = newsData == null ? 0 : Math.min(4, newsData.size());
-        int statusH = s(110, sc);
-        int newsH = s(30, sc) + (newsCount == 0 ? s(24, sc) : newsCount * s(40, sc));
-        int panelGap = s(10, sc);
-        int rightTotal = statusH + panelGap + newsH;
-        int rightY = s(60, sc) + (contentH - rightTotal) / 2;
-        drawStatusPanel(g, rightX, rightY, rightColW, statusH, sc);
-        drawNewsPanel(g, rightX, rightY + statusH + panelGap, rightColW, newsH, sc);
-
-        // Social icons
-        int socSize = s(38, sc);
-        int socGap = s(10, sc);
-        int socY = H - s(24, sc) - socSize;
-        int socRight = W - s(40, sc);
-        drawSocialIcon(g, socRight - socSize * 3 - socGap * 2, socY, socSize, sc, baseMx, baseMy, "telegram");
-        drawSocialIcon(g, socRight - socSize * 2 - socGap, socY, socSize, sc, baseMx, baseMy, "discord");
-        drawSocialIcon(g, socRight - socSize, socY, socSize, sc, baseMx, baseMy, "globe");
-
-        // Version
-        g.setFont(f400.deriveFont((float)s(10, sc)));
+        g.setFont(f400.deriveFont(10f * SC));
         g.setColor(TEXT_DIM);
-        g.drawString("Minecraft 1.21.1 \u00B7 NeoForge \u00B7 GRID v0.1.0", pad, H - s(10, sc) - s(3, sc));
+        g.drawString("Minecraft 1.21.1 \u00B7 NeoForge \u00B7 GRID v0.1.0", pad, H - s(10) - s(3));
 
         g.dispose();
 
-        // Scale button rects from base-space to screen-space
-        scaleButtonsToScreen();
-        return img;
-    }
-
-    /**
-     * Scale cached button rects from base (960x540) to actual screen coordinates.
-     */
-    private void scaleButtonsToScreen() {
         for (int i = 0; i < buttons.size(); i++) {
             BtnRect b = buttons.get(i);
             buttons.set(i, new BtnRect(
-                (int)(b.x * screenScale),
-                (int)(b.y * screenScale),
-                (int)(b.w * screenScale),
-                (int)(b.h * screenScale),
-                b.id
-            ));
+                (int) (b.x * screenScale), (int) (b.y * screenScale),
+                (int) (b.w * screenScale), (int) (b.h * screenScale), b.id));
         }
+        return reusableImg;
     }
 
-    /* =====================
-       BACKGROUND (cached)
-       ===================== */
-    private void drawBackground(Graphics2D g, int W, int H, float sc) {
+    /* ===== BACKGROUND (cached) ===== */
+    private void paintBg(Graphics2D g, int W, int H) {
         if (bgPhoto != null) {
-            double scale = Math.max((double) W / bgPhoto.getWidth(), (double) H / bgPhoto.getHeight());
-            int sw = (int)(bgPhoto.getWidth() * scale);
-            int sh = (int)(bgPhoto.getHeight() * scale);
+            double sc = Math.max((double) W / bgPhoto.getWidth(), (double) H / bgPhoto.getHeight());
+            int sw = (int) (bgPhoto.getWidth() * sc);
+            int sh = (int) (bgPhoto.getHeight() * sc);
             g.drawImage(bgPhoto, (W - sw) / 2, (H - sh) / 2, sw, sh, null);
         }
-        // Gradient overlay
         for (int y = 0; y < H; y++) {
             float t = (float) y / Math.max(1, H - 1);
-            float alpha;
-            if (t < 0.4f) alpha = 0.72f + (0.50f - 0.72f) * (t / 0.4f);
-            else alpha = 0.50f + (0.68f - 0.50f) * ((t - 0.4f) / 0.6f);
-            g.setColor(new Color(11, 15, 12, (int)(alpha * 255)));
+            float a;
+            if (t < 0.4f) a = 0.72f + (0.50f - 0.72f) * (t / 0.4f);
+            else a = 0.50f + (0.68f - 0.50f) * ((t - 0.4f) / 0.6f);
+            g.setColor(new Color(11, 15, 12, (int) (a * 255)));
             g.fillRect(0, y, W, 1);
         }
-        // Vignette
-        float vigRadius = Math.max(W, H) * 0.7f;
+        float vigR = Math.max(W, H) * 0.7f;
         RadialGradientPaint vig = new RadialGradientPaint(
-            new Point2D.Float(W / 2f, H / 2f), vigRadius,
+            new Point2D.Float(W / 2f, H / 2f), vigR,
             new float[]{0.4f, 1.0f},
             new Color[]{new Color(0, 0, 0, 0), new Color(0, 0, 0, 128)}
         );
@@ -288,340 +228,278 @@ public final class GridRenderer {
         g.setPaint(null);
     }
 
-    /* =====================
-       TOP BAR
-       CSS: height:60px; padding:20px 40px;
-       ===================== */
-    private void drawTopbar(Graphics2D g, int W, int H, float sc, int pad) {
-        int topPad = s(20, sc);
-
-        // Brand mark 32x32 (clip-path polygon 5px)
-        int bmSize = s(32, sc);
-        int cut = s(5, sc);
-        drawClippedRect(g, pad, topPad, bmSize, bmSize, cut, ACCENT);
-        g.setFont(f900.deriveFont((float)s(17, sc)));
+    /* ===== TOP BAR ===== */
+    private void paintTopbar(Graphics2D g, int W, int pad, int topPad) {
+        int bm = s(32);
+        drawClippedRect(g, pad, topPad, bm, bm, s(5), ACCENT);
+        g.setFont(f900.deriveFont(17f * SC));
         g.setColor(BG_DEEP);
-        FontMetrics fm = g.getFontMetrics();
-        String gLetter = "G";
-        int gw = fm.stringWidth(gLetter);
-        g.drawString(gLetter, pad + (bmSize - gw) / 2, topPad + (bmSize + fm.getAscent()) / 2 - fm.getDescent());
-
-        // Brand text "GRID"
-        g.setFont(f700.deriveFont((float)s(13, sc)));
-        drawSpaced(g, "GRID", pad + bmSize + s(12, sc), topPad + bmSize / 2 + s(4, sc), s(3, sc), TEXT_MAIN);
-
-        drawAuthCard(g, W, pad, sc);
+        FontMetrics fmG = g.getFontMetrics();
+        String gL = "G";
+        g.drawString(gL, pad + (bm - fmG.stringWidth(gL)) / 2, topPad + (bm + fmG.getAscent()) / 2 - fmG.getDescent());
+        g.setFont(f700.deriveFont(13f * SC));
+        drawSpaced(g, "GRID", pad + bm + s(12), topPad + bm / 2 + (g.getFontMetrics().getAscent() + g.getFontMetrics().getDescent()) / 2 - g.getFontMetrics().getDescent(), s(3), TEXT_MAIN);
+        paintAuthCard(g, W, pad, topPad);
     }
 
-    /* =====================
-       AUTH CARD
-       ===================== */
-    private void drawAuthCard(Graphics2D g, int W, int pad, float sc) {
+    /* ===== AUTH CARD ===== */
+    private void paintAuthCard(Graphics2D g, int W, int pad, int topPad) {
         boolean authed = authData != null;
         String nick = "\u0413\u041E\u0421\u0422\u042C";
         String rank = "";
         if (authed) {
             if (authData.has("username")) nick = authData.get("username").getAsString().toUpperCase();
-            if (authData.has("donate")) rank = authData.get("donate").getAsString().toUpperCase();
+            if (authData.has("donate") && !authData.get("donate").getAsString().isEmpty())
+                rank = authData.get("donate").getAsString().toUpperCase();
             if (rank.isEmpty() && authData.has("rank")) rank = authData.get("rank").getAsString().toUpperCase();
         }
-
-        g.setFont(f600.deriveFont((float)s(12, sc)));
-        FontMetrics fmNick = g.getFontMetrics();
-        int nickW = fmNick.stringWidth(nick);
-
-        g.setFont(f600.deriveFont((float)s(10, sc)));
-        FontMetrics fmRank = g.getFontMetrics();
-        int rankW = rank.isEmpty() ? 0 : fmRank.stringWidth(rank);
-
-        int line1W = s(14, sc) + nickW + (rank.isEmpty() ? 0 : s(7, sc) + rankW + s(10, sc)) + s(14, sc);
-
+        g.setFont(f600.deriveFont(12f * SC));
+        int nickW = g.getFontMetrics().stringWidth(nick);
+        int rankBadgeW = 0;
+        if (!rank.isEmpty()) {
+            g.setFont(f600.deriveFont(10f * SC));
+            rankBadgeW = s(5) + g.getFontMetrics().stringWidth(rank) + s(5) + s(7);
+        }
+        int line1W = nickW + rankBadgeW;
         String balLabel = authed ? "\u0411\u0430\u043B\u0430\u043D\u0441: " : "\u0410\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F";
-        String balValue = authed ? formatBalance(balance()) + " \u20BD" : "";
-        g.setFont(f400.deriveFont((float)s(10, sc)));
-        FontMetrics fmBal = g.getFontMetrics();
-        int line2W = s(14, sc) + fmBal.stringWidth(balLabel)
-                      + (balValue.isEmpty() ? 0 : s(4, sc) + fmBal.stringWidth(balValue)) + s(14, sc);
-
-        int cardW = Math.max(line1W, line2W);
-        int cardH = authed ? s(46, sc) : s(32, sc);
-        int cx = W - pad - cardW;
-        int cy = (s(60, sc) - cardH) / 2;
-
-        fillRoundRect(g, cx, cy, cardW, cardH, s(10, sc), LINE);
-        fillRoundRect(g, cx + 1, cy + 1, cardW - 2, cardH - 2, s(9, sc), PANEL_BG);
-
-        int tx = cx + s(14, sc);
-        int ty = cy + s(7, sc);
-
-        g.setFont(f600.deriveFont((float)s(12, sc)));
+        String balVal = authed ? fmtBal(balance()) + " \u20BD" : "";
+        g.setFont(f400.deriveFont(10f * SC));
+        int line2W = g.getFontMetrics().stringWidth(balLabel) + (balVal.isEmpty() ? 0 : g.getFontMetrics().stringWidth(balVal));
+        int cw = s(14) * 2 + Math.max(line1W, line2W);
+        g.setFont(f600.deriveFont(12f * SC));
+        int l1h = g.getFontMetrics().getHeight();
+        g.setFont(f400.deriveFont(10f * SC));
+        int l2h = g.getFontMetrics().getHeight();
+        int ch = (authed ? s(7) * 2 + l1h + s(2) + l2h : s(7) * 2 + l2h);
+        int cy = (s(60) - ch) / 2;
+        int cx = W - pad - cw;
+        fillRR(g, cx, cy, cw, ch, s(10), LINE);
+        fillRR(g, cx + 1, cy + 1, cw - 2, ch - 2, s(9), PANEL_BG);
+        int tx = cx + s(14);
+        int ty = cy + s(7);
+        g.setFont(f600.deriveFont(12f * SC));
         g.setColor(TEXT_MAIN);
         g.drawString(nick, tx, ty + g.getFontMetrics().getAscent());
-
         if (!rank.isEmpty()) {
-            int rx = tx + nickW + s(7, sc);
-            int rw = rankW + s(10, sc);
-            int rh = g.getFontMetrics().getHeight() + s(2, sc);
-            fillRoundRect(g, rx, ty - 1, rw, rh, s(3, sc), ACCENT_DIM);
-            g.setFont(f600.deriveFont((float)s(10, sc)));
+            g.setFont(f600.deriveFont(10f * SC));
+            FontMetrics fmR = g.getFontMetrics();
+            int rx = tx + nickW + s(7);
+            int rw = s(5) + fmR.stringWidth(rank) + s(5);
+            int rh = fmR.getHeight() + s(2);
+            int ry = ty + (g.getFontMetrics().getAscent() - fmR.getAscent()) - s(1);
+            fillRR(g, rx, ry, rw, rh, s(3), ACCENT_DIM);
             g.setColor(ACCENT);
-            g.drawString(rank, rx + s(5, sc), ty + g.getFontMetrics().getAscent() - 1);
+            g.drawString(rank, rx + s(5), ry + s(1) + fmR.getAscent());
         }
-
         if (authed) {
-            int by = ty + s(16, sc);
-            g.setFont(f400.deriveFont((float)s(10, sc)));
+            int by = ty + l1h + s(2);
+            g.setFont(f400.deriveFont(10f * SC));
             g.setColor(TEXT_MUTED);
             g.drawString(balLabel, tx, by + g.getFontMetrics().getAscent());
-            int lw = g.getFontMetrics().stringWidth(balLabel);
-            g.setColor(ACCENT);
-            g.setFont(f600.deriveFont((float)s(10, sc)));
-            g.drawString(balValue, tx + lw + s(4, sc), by + g.getFontMetrics().getAscent());
-        } else {
-            g.setFont(f400.deriveFont((float)s(10, sc)));
-            g.setColor(TEXT_MUTED);
-            g.drawString(balLabel, tx, ty + g.getFontMetrics().getAscent());
+            if (!balVal.isEmpty()) {
+                int lw = g.getFontMetrics().stringWidth(balLabel);
+                g.setFont(f600.deriveFont(10f * SC));
+                g.setColor(ACCENT);
+                g.drawString(balVal, tx + lw + s(4), by + g.getFontMetrics().getAscent());
+            }
         }
     }
 
     private long balance() {
-        return authData != null && authData.has("balance") ? authData.get("balance").getAsLong() : 0L;
+        return (authData != null && authData.has("balance")) ? authData.get("balance").getAsLong() : 0L;
     }
 
-    /* =====================
-       3D TITLE + TAG
-       ===================== */
-    private void drawTitle(Graphics2D g, int menuX, int menuW, int baseY, float sc) {
-        g.setFont(f900.deriveFont(52f * sc));
+    /* ===== 3D TITLE ===== */
+    private void paintTitle(Graphics2D g, int menuX, int menuW, int baseY) {
+        g.setFont(f900.deriveFont(52f * SC));
         FontMetrics fm = g.getFontMetrics();
-        int ls = s(8, sc);
-        int textW = (int)spacedWidth(g, "GRID", ls);
-        int padX = s(36, sc);
-        int boxW = textW + padX * 2;
-        int boxH = fm.getAscent() + fm.getDescent() + s(10, sc) + s(12, sc);
-        int boxX = menuX + (menuW - boxW) / 2;
-        int r = s(8, sc);
-
-        // Drop shadow
+        int ls = s(8);
+        int tw = (int) spacedW(g, "GRID", ls);
+        int px = s(36);
+        int bw = tw + px * 2;
+        int bh = fm.getAscent() + fm.getDescent() + s(10) + s(12);
+        int bx = menuX + (menuW - bw) / 2;
+        int r = s(8);
         Composite old = g.getComposite();
         g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.50f));
-        fillRoundRect(g, boxX - s(4, sc), baseY + s(9, sc), boxW + s(8, sc), boxH + s(8, sc), r, Color.BLACK);
+        fillRR(g, bx - s(4), baseY + s(9), bw + s(8), bh + s(8), r + s(2), Color.BLACK);
         g.setComposite(old);
-
-        // 3D layers
-        fillRoundRect(g, boxX, baseY + s(7, sc), boxW, boxH, r, ACCENT_DARKER);
-        fillRoundRect(g, boxX, baseY + s(5, sc), boxW, boxH, r, ACCENT_DARK);
-        fillRoundRect(g, boxX, baseY, boxW, boxH, r, ACCENT);
-
-        // Text
+        fillRR(g, bx, baseY + s(7), bw, bh, r, ACCENT_DARKER);
+        fillRR(g, bx, baseY + s(5), bw, bh, r, ACCENT_DARK);
+        fillRR(g, bx, baseY, bw, bh, r, ACCENT);
         g.setColor(BG_DEEP);
-        float textX = boxX + padX + (boxW - padX * 2 - textW) / 2;
-        float textY = baseY + s(10, sc) + fm.getAscent();
-        drawSpaced(g, "GRID", textX, textY, ls, BG_DEEP);
-
-        // Tag
-        g.setFont(f600.deriveFont((float)s(11, sc)));
-        FontMetrics fmTag = g.getFontMetrics();
+        float txX = bx + px + (bw - px * 2 - tw) / 2;
+        drawSpaced(g, "GRID", txX, baseY + s(10) + fm.getAscent(), ls, BG_DEEP);
+        g.setFont(f600.deriveFont(11f * SC));
+        FontMetrics fmT = g.getFontMetrics();
         String tag = "\u0412\u041E\u0415\u041D\u041D\u041E-\u041F\u041E\u041B\u0418\u0422\u0418\u0427\u0415\u0421\u041A\u0418\u0419 \u0421\u0415\u0420\u0412\u0415\u0420";
-        int tagLs = s(1.5f, sc);
-        int tagTextW = (int)spacedWidth(g, tag, tagLs);
-        int tagPadX = s(16, sc);
-        int tagW = tagTextW + tagPadX * 2;
-        int tagH = s(4, sc) + fmTag.getHeight() + s(4, sc);
-        int tagY = baseY + boxH - s(2, sc);
-        int tagX = menuX + (menuW - tagW) / 2;
-
-        fillRoundRect(g, tagX, tagY, tagW, tagH, s(4, sc), ACCENT_BORDER);
-        fillRoundRect(g, tagX + 1, tagY + 1, tagW - 2, tagH - 2, s(3, sc), ACCENT_DIM);
-
+        float tLs = 1.5f * SC;
+        int ttw = (int) spacedW(g, tag, tLs);
+        int tpx = s(16);
+        int tW = ttw + tpx * 2;
+        int tH = s(4) + fmT.getHeight() + s(4);
+        int tY = baseY + bh - s(2);
+        int tX = menuX + (menuW - tW) / 2;
+        fillRR(g, tX, tY, tW, tH, s(4), ACCENT_BORDER);
+        fillRR(g, tX + 1, tY + 1, tW - 2, tH - 2, s(3), ACCENT_DIM);
         g.setColor(ACCENT);
-        float tagTextX = tagX + tagPadX + (tagW - tagPadX * 2 - tagTextW) / 2;
-        drawSpaced(g, tag, tagTextX, tagY + s(4, sc) + fmTag.getAscent(), tagLs, ACCENT);
+        drawSpaced(g, tag, tX + tpx + (tW - tpx * 2 - ttw) / 2, tY + s(4) + fmT.getAscent(), tLs, ACCENT);
     }
 
-    /* =====================
-       PLAY BUTTON (PRIMARY)
-       ===================== */
-    private void drawPlayButton(Graphics2D g, int x, int y, int w, int h, float sc, int mx, int my) {
-        boolean hover = mx >= x && mx < x + w && my >= y && my < y + h;
+    /* ===== PLAY BUTTON ===== */
+    private void paintPlayBtn(Graphics2D g, int x, int y, int w, int h, int mx, int my) {
+        boolean hov = mx >= x && mx < x + w && my >= y && my < y + h;
         buttons.add(new BtnRect(x, y, w, h, "play"));
-
-        // Glow
         Composite old = g.getComposite();
-        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, hover ? 0.20f : 0.10f));
-        fillRoundRect(g, x - s(6, sc), y - s(6, sc), w + s(12, sc), h + s(12, sc), s(18, sc), ACCENT);
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, hov ? 0.20f : 0.10f));
+        fillRR(g, x - s(6), y - s(6), w + s(12), h + s(12), s(18), ACCENT);
         g.setComposite(old);
-
-        fillRoundRect(g, x, y, w, h, s(12, sc), hover ? ACCENT_HOVER : ACCENT);
-
-        // Play icon
-        int iconCx = x + s(20, sc) + s(18, sc);
-        int iconCy = y + h / 2;
-        drawPlayIcon(g, iconCx, iconCy, s(22, sc), BG_DEEP);
-
-        // Text
-        int textX = x + s(20, sc) + s(36, sc) + s(16, sc);
-        g.setFont(f700.deriveFont((float)s(15, sc)));
+        fillRR(g, x, y, w, h, s(12), hov ? ACCENT_HOVER : ACCENT);
+        int icx = x + s(20) + s(18);
+        int icy = y + h / 2;
+        drawPlayIc(g, icx, icy, s(22), BG_DEEP);
+        int txX = x + s(20) + s(36) + s(16);
+        g.setFont(f700.deriveFont(15f * SC));
         FontMetrics fmT = g.getFontMetrics();
-        int titleH = fmT.getHeight();
-        g.setFont(f400.deriveFont((float)s(11, sc)));
-        int descH = g.getFontMetrics().getHeight();
-        int totalTextH = titleH + s(2, sc) + descH;
-        int textBlockY = y + (h - totalTextH) / 2;
-
-        g.setFont(f700.deriveFont((float)s(15, sc)));
+        g.setFont(f400.deriveFont(11f * SC));
+        FontMetrics fmD = g.getFontMetrics();
+        int ttH = fmT.getHeight() + s(2) + fmD.getHeight();
+        int tbY = y + (h - ttH) / 2;
+        g.setFont(f700.deriveFont(15f * SC));
         g.setColor(BG_DEEP);
-        drawSpaced(g, "\u0418\u0413\u0420\u0410\u0422\u042C", textX, textBlockY + fmT.getAscent(), s(1, sc), BG_DEEP);
-
-        g.setFont(f400.deriveFont((float)s(11, sc)));
-        FontMetrics fmD = g.getFontMetrics();
+        drawSpaced(g, "\u0418\u0413\u0420\u0410\u0422\u042C", txX, tbY + fmT.getAscent(), s(1), BG_DEEP);
+        g.setFont(f400.deriveFont(11f * SC));
         g.setColor(new Color(11, 15, 12, 153));
-        g.drawString("\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u043A \u0441\u0435\u0440\u0432\u0435\u0440\u0443", textX,
-                textBlockY + titleH + s(2, sc) + fmD.getAscent());
+        g.drawString("\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u043A \u0441\u0435\u0440\u0432\u0435\u0440\u0443",
+            txX, tbY + fmT.getHeight() + s(2) + fmD.getAscent());
     }
 
-    /* =====================
-       SINGLE WORLD BUTTON (SECONDARY)
-       ===================== */
-    private void drawSingleButton(Graphics2D g, int x, int y, int w, int h, float sc, int mx, int my) {
-        boolean hover = mx >= x && mx < x + w && my >= y && my < y + h;
+    /* ===== SINGLE BUTTON ===== */
+    private void paintSingleBtn(Graphics2D g, int x, int y, int w, int h, int mx, int my) {
+        boolean hov = mx >= x && mx < x + w && my >= y && my < y + h;
         buttons.add(new BtnRect(x, y, w, h, "single"));
-
-        fillRoundRect(g, x, y, w, h, s(10, sc), LINE);
-        fillRoundRect(g, x + 1, y + 1, w - 2, h - 2, s(9, sc), hover ? BTN_SEC_HOVER : BTN_SEC_BG);
-
-        int iconCx = x + s(20, sc) + s(18, sc);
-        int iconCy = y + h / 2;
-        drawCheckIcon(g, iconCx, iconCy, s(22, sc), ACCENT);
-
-        int textX = x + s(20, sc) + s(36, sc) + s(16, sc);
-        g.setFont(f700.deriveFont((float)s(15, sc)));
+        fillRR(g, x, y, w, h, s(10), hov ? ACCENT_BORDER : LINE);
+        fillRR(g, x + 1, y + 1, w - 2, h - 2, s(9), hov ? BTN_SEC_HOVER : BTN_SEC_BG);
+        drawCheckIc(g, x + s(20) + s(18), y + h / 2, s(22), ACCENT);
+        int txX = x + s(20) + s(36) + s(16);
+        g.setFont(f700.deriveFont(15f * SC));
         FontMetrics fmT = g.getFontMetrics();
-        int titleH = fmT.getHeight();
-        g.setFont(f400.deriveFont((float)s(11, sc)));
-        int descH = g.getFontMetrics().getHeight();
-        int totalTextH = titleH + s(2, sc) + descH;
-        int textBlockY = y + (h - totalTextH) / 2;
-
-        g.setFont(f700.deriveFont((float)s(15, sc)));
-        g.setColor(TEXT_MAIN);
-        drawSpaced(g, "\u041E\u0414\u0418\u041D\u041E\u0427\u041D\u042B\u0419 \u041C\u0418\u0420", textX, textBlockY + fmT.getAscent(), s(1, sc), TEXT_MAIN);
-
-        g.setFont(f400.deriveFont((float)s(11, sc)));
+        g.setFont(f400.deriveFont(11f * SC));
         FontMetrics fmD = g.getFontMetrics();
+        int ttH = fmT.getHeight() + s(2) + fmD.getHeight();
+        int tbY = y + (h - ttH) / 2;
+        g.setFont(f700.deriveFont(15f * SC));
+        g.setColor(TEXT_MAIN);
+        drawSpaced(g, "\u041E\u0414\u0418\u041D\u041E\u0427\u041D\u042B\u0419 \u041C\u0418\u0420", txX, tbY + fmT.getAscent(), s(1), TEXT_MAIN);
+        g.setFont(f400.deriveFont(11f * SC));
         g.setColor(TEXT_MUTED);
-        g.drawString("\u041E\u0434\u0438\u043D\u043E\u0447\u043D\u0430\u044F \u0438\u0433\u0440\u0430", textX,
-                textBlockY + titleH + s(2, sc) + fmD.getAscent());
+        g.drawString("\u041E\u0434\u0438\u043D\u043E\u0447\u043D\u0430\u044F \u0438\u0433\u0440\u0430",
+            txX, tbY + fmT.getHeight() + s(2) + fmD.getAscent());
     }
 
-    /* =====================
-       SMALL BUTTONS ROW
-       ===================== */
-    private void drawSmallButtons(Graphics2D g, int menuX, int y, int menuW, int h, float sc, int mx, int my) {
+    /* ===== SMALL BUTTONS ===== */
+    private void paintSmallBtns(Graphics2D g, int mx0, int y, int mw, int h, int mx, int my) {
         String[] labels = {"\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418", "\u041E \u0421\u0415\u0420\u0412\u0415\u0420\u0415", "\u041C\u0410\u0413\u0410\u0417\u0418\u041D", "\u0412\u042B\u0425\u041E\u0414"};
         String[] ids = {"settings", "info", "shop", "exit"};
-        int gap = s(8, sc);
-        int bw = (menuW - gap * (labels.length - 1)) / labels.length;
-
-        for (int i = 0; i < labels.length; i++) {
-            int bx = menuX + i * (bw + gap);
-            boolean hover = mx >= bx && mx < bx + bw && my >= y && my < y + h;
-            boolean isExit = ids[i].equals("exit");
+        int gap = s(8);
+        int bw = (mw - gap * 3) / 4;
+        for (int i = 0; i < 4; i++) {
+            int bx = mx0 + i * (bw + gap);
+            boolean hov = mx >= bx && mx < bx + bw && my >= y && my < y + h;
+            boolean isExit = "exit".equals(ids[i]);
             buttons.add(new BtnRect(bx, y, bw, h, ids[i]));
-
-            Color borderC = isExit && hover ? new Color(220, 80, 80, 77) : (hover ? ACCENT_BORDER : LINE);
-            fillRoundRect(g, bx, y, bw, h, s(10, sc), borderC);
-            fillRoundRect(g, bx + 1, y + 1, bw - 2, h - 2, s(9, sc), hover ? BTN_SM_HOVER : BTN_SM_BG);
-
-            g.setFont(f500.deriveFont((float)s(11, sc)));
+            Color bc = isExit && hov ? new Color(220, 80, 80, 77) : (hov ? ACCENT_BORDER : LINE);
+            fillRR(g, bx, y, bw, h, s(10), bc);
+            fillRR(g, bx + 1, y + 1, bw - 2, h - 2, s(9), hov ? BTN_SM_HOVER : BTN_SM_BG);
+            g.setFont(f500.deriveFont(11f * SC));
             FontMetrics fm = g.getFontMetrics();
-            int iconS = s(14, sc);
-            int gapIC = s(8, sc);
-            float textLS = s(0.8f, sc);
-            int textW = (int)spacedWidth(g, labels[i], textLS);
-            int total = iconS + gapIC + textW;
+            int icS = s(14);
+            int icG = s(8);
+            float tLs = 0.8f * SC;
+            int tW = (int) spacedW(g, labels[i], tLs);
+            int total = icS + icG + tW;
             int sx = bx + (bw - total) / 2;
             int sy = y + (h - fm.getHeight()) / 2 + fm.getAscent();
-
-            Color iconColor = isExit && hover ? new Color(0xE0, 0x55, 0x55) : (hover ? ACCENT : TEXT_MUTED);
-            int iconCx = sx + iconS / 2;
-            int iconCy = y + h / 2;
+            Color ic = isExit && hov ? new Color(0xE0, 0x55, 0x55) : (hov ? ACCENT : TEXT_MUTED);
+            int icx = sx + icS / 2;
+            int icy = y + h / 2;
             switch (i) {
-                case 0 -> drawSlidersIcon(g, iconCx, iconCy, iconS, iconColor);
-                case 1 -> drawInfoIcon(g, iconCx, iconCy, iconS, iconColor);
-                case 2 -> drawBagIcon(g, iconCx, iconCy, iconS, iconColor);
-                case 3 -> drawExitIcon(g, iconCx, iconCy, iconS, iconColor);
+                case 0 -> drawGearIc(g, icx, icy, icS, ic);
+                case 1 -> drawInfoIc(g, icx, icy, icS, ic);
+                case 2 -> drawBagIc(g, icx, icy, icS, ic);
+                case 3 -> drawExitIc(g, icx, icy, icS, ic);
             }
-
-            Color textC = hover ? TEXT_MAIN : TEXT_MUTED;
-            drawSpaced(g, labels[i], sx + iconS + gapIC, sy, textLS, textC);
+            drawSpaced(g, labels[i], sx + icS + icG, sy, tLs, hov ? TEXT_MAIN : TEXT_MUTED);
         }
     }
 
-    /* =====================
-       STATUS PANEL
-       ===================== */
-    private void drawStatusPanel(Graphics2D g, int x, int y, int w, int h, float sc) {
-        fillRoundRect(g, x, y, w, h, s(10, sc), LINE);
-        fillRoundRect(g, x + 1, y + 1, w - 2, h - 2, s(9, sc), PANEL_BG);
-
-        g.setFont(f600.deriveFont((float)s(10, sc)));
+    /* ===== STATUS PANEL ===== */
+    private void paintStatusPanel(Graphics2D g, int x, int y, int w, int h) {
+        fillRR(g, x, y, w, h, s(10), LINE);
+        fillRR(g, x + 1, y + 1, w - 2, h - 2, s(9), PANEL_BG);
+        g.setFont(f600.deriveFont(10f * SC));
         g.setColor(TEXT_MUTED);
-        drawSpaced(g, "\u0421\u0422\u0410\u0422\u0423\u0421 \u0421\u0415\u0420\u0412\u0415\u0420\u0410", x + s(18, sc), y + s(18, sc) + g.getFontMetrics().getAscent(), s(1.5f, sc), TEXT_MUTED);
-
-        int dy = y + s(18, sc) + s(12, sc) + s(8, sc);
-        boolean online = serverState == 1;
-        Color dotC = online ? ACCENT : new Color(0x61, 0x6A, 0x64);
-        String label = online ? "\u0421\u0435\u0440\u0432\u0435\u0440 \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442" :
-                serverState == 0 ? "\u0421\u0435\u0440\u0432\u0435\u0440 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D" : "\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430...";
-        Color labelC = online ? ACCENT : (serverState == 0 ? new Color(0xE0, 0x66, 0x66) : TEXT_MUTED);
-
+        int tY = y + s(18);
+        drawSpaced(g, "\u0421\u0422\u0410\u0422\u0423\u0421 \u0421\u0415\u0420\u0412\u0415\u0420\u0410",
+            x + s(18), tY + g.getFontMetrics().getAscent(), 1.5f * SC, TEXT_MUTED);
+        int rowY = tY + g.getFontMetrics().getHeight() + s(12);
+        boolean on = serverState == 1;
+        Color dotC = on ? ACCENT : new Color(0x61, 0x6A, 0x64);
+        int ds = s(6);
+        int dcy = rowY + (s(11) - ds) / 2 + ds / 2;
         g.setColor(dotC);
-        g.fillOval(x + s(18, sc), dy + (s(11, sc) - s(6, sc)) / 2, s(6, sc), s(6, sc));
-        g.setFont(f400.deriveFont((float)s(11, sc)));
-        g.setColor(labelC);
-        g.drawString(label, x + s(18, sc) + s(6, sc) + s(7, sc), dy + g.getFontMetrics().getAscent());
-
-        if (online) {
-            int numY = dy + s(20, sc);
-            g.setFont(f700.deriveFont((float)s(26, sc)));
+        g.fillOval(x + s(18), dcy - ds / 2, ds, ds);
+        g.setFont(f400.deriveFont(11f * SC));
+        String lbl;
+        Color lblC;
+        if (on) { lbl = "\u0421\u0435\u0440\u0432\u0435\u0440 \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442"; lblC = ACCENT; }
+        else if (serverState == 0) { lbl = "\u0421\u0435\u0440\u0432\u0435\u0440 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D"; lblC = new Color(0xE0, 0x66, 0x66); }
+        else { lbl = "\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430..."; lblC = TEXT_MUTED; }
+        g.setColor(lblC);
+        g.drawString(lbl, x + s(18) + ds + s(7), rowY + g.getFontMetrics().getAscent());
+        if (on) {
+            int numY = rowY + s(11) + s(8);
+            g.setFont(f700.deriveFont(26f * SC));
             g.setColor(TEXT_MAIN);
-            String numStr = String.valueOf(onlinePlayers);
-            g.drawString(numStr, x + s(18, sc), numY + g.getFontMetrics().getAscent());
-            int numW = g.getFontMetrics().stringWidth(numStr);
-
-            g.setFont(f400.deriveFont((float)s(12, sc)));
+            String ns = String.valueOf(onlinePlayers);
+            g.drawString(ns, x + s(18), numY + g.getFontMetrics().getAscent());
+            int nw = g.getFontMetrics().stringWidth(ns);
+            g.setFont(f400.deriveFont(12f * SC));
             g.setColor(TEXT_MUTED);
-            g.drawString("\u0438\u0433\u0440\u043E\u043A\u0430", x + s(18, sc) + numW + s(3, sc), numY + g.getFontMetrics().getAscent());
-
-            int barY = numY + s(26, sc) + s(10, sc);
-            int barX = x + s(18, sc);
-            int barW = w - s(36, sc);
-            fillRoundRect(g, barX, barY, barW, s(3, sc), s(2, sc), LINE);
-            int fillW = maxPlayers > 0 ? Math.max(s(3, sc), (int)(barW * Math.min(1f, (float)onlinePlayers / maxPlayers))) : s(3, sc);
-            fillRoundRect(g, barX, barY, fillW, s(3, sc), s(2, sc), ACCENT);
+            g.drawString("\u0438\u0433\u0440\u043E\u043A\u0430", x + s(18) + nw + s(3), numY + g.getFontMetrics().getAscent());
+            int barY = numY + g.getFontMetrics().getHeight() + s(10);
+            int barX = x + s(18);
+            int barW = w - s(36);
+            int barH = s(3);
+            fillRR(g, barX, barY, barW, barH, s(2), LINE);
+            int fW = maxPlayers > 0 ? Math.max(barH, (int) (barW * Math.min(1f, (float) onlinePlayers / maxPlayers))) : barH;
+            fillRR(g, barX, barY, fW, barH, s(2), ACCENT);
         }
     }
 
-    /* =====================
-       NEWS PANEL
-       ===================== */
-    private void drawNewsPanel(Graphics2D g, int x, int y, int w, int h, float sc) {
-        fillRoundRect(g, x, y, w, h, s(10, sc), LINE);
-        fillRoundRect(g, x + 1, y + 1, w - 2, h - 2, s(9, sc), PANEL_BG);
-
-        g.setFont(f600.deriveFont((float)s(10, sc)));
+    /* ===== NEWS PANEL ===== */
+    private void paintNewsPanel(Graphics2D g, int x, int y, int w, int h) {
+        fillRR(g, x, y, w, h, s(10), LINE);
+        fillRR(g, x + 1, y + 1, w - 2, h - 2, s(9), PANEL_BG);
+        g.setFont(f600.deriveFont(10f * SC));
         g.setColor(TEXT_MUTED);
-        drawSpaced(g, "\u041D\u041E\u0412\u041E\u0421\u0422\u0418", x + s(18, sc), y + s(18, sc) + g.getFontMetrics().getAscent(), s(1.5f, sc), TEXT_MUTED);
-
+        int tY = y + s(18);
+        drawSpaced(g, "\u041D\u041E\u0412\u041E\u0421\u0422\u0418", x + s(18), tY + g.getFontMetrics().getAscent(), 1.5f * SC, TEXT_MUTED);
+        int listY = tY + g.getFontMetrics().getHeight() + s(12);
         if (newsData == null) {
-            g.setFont(f400.deriveFont((float)s(11, sc)));
+            g.setFont(f400.deriveFont(11f * SC));
             g.setColor(TEXT_DIM);
-            g.drawString("\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430...", x + s(18, sc), y + s(38, sc) + g.getFontMetrics().getAscent());
+            g.drawString("\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430...", x + s(18), listY + s(8) + g.getFontMetrics().getAscent());
             return;
         }
-
-        int iy = y + s(18, sc) + s(12, sc);
+        if (newsData.size() == 0) {
+            g.setFont(f400.deriveFont(11f * SC));
+            g.setColor(TEXT_DIM);
+            g.drawString("\u041D\u043E\u0432\u043E\u0441\u0442\u0435\u0439 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442", x + s(18), listY + s(8) + g.getFontMetrics().getAscent());
+            return;
+        }
+        int maxTW = w - s(36);
+        int iy = listY;
         int shown = 0;
         for (JsonElement el : newsData) {
             if (shown >= 4) break;
@@ -629,221 +507,182 @@ public final class GridRenderer {
             String title = item.has("title") ? item.get("title").getAsString() : "";
             String date = item.has("publishedAt") ? item.get("publishedAt").getAsString() : "";
             if (date.length() >= 10) date = date.substring(8, 10) + "." + date.substring(5, 7) + "." + date.substring(0, 4);
-
-            int itemY = iy + s(8, sc);
-
-            g.setFont(f400.deriveFont((float)s(9, sc)));
+            int itY = iy + s(8);
+            g.setFont(f400.deriveFont(9f * SC));
             g.setColor(TEXT_DIM);
-            g.drawString(date, x + s(18, sc), itemY + g.getFontMetrics().getAscent());
-
-            g.setFont(f500.deriveFont((float)s(11, sc)));
+            g.drawString(date, x + s(18), itY + g.getFontMetrics().getAscent());
+            g.setFont(f500.deriveFont(11f * SC));
             FontMetrics fmT = g.getFontMetrics();
-            int maxW = w - s(36, sc);
-            String clipped = title;
-            if (fmT.stringWidth(clipped) > maxW) {
-                while (clipped.length() > 3 && fmT.stringWidth(clipped + "...") > maxW) clipped = clipped.substring(0, clipped.length() - 1);
-                clipped += "...";
+            String cl = title;
+            if (fmT.stringWidth(cl) > maxTW) {
+                while (cl.length() > 3 && fmT.stringWidth(cl + "...") > maxTW) cl = cl.substring(0, cl.length() - 1);
+                cl += "...";
             }
             g.setColor(TEXT_MAIN);
-            g.drawString(clipped, x + s(18, sc), itemY + s(12, sc) + fmT.getAscent());
-
-            if (shown < 3) {
-                g.setColor(new Color(52, 64, 56, 102));
-                g.fillRect(x + s(18, sc), itemY + s(28, sc), w - s(36, sc), 1);
+            g.drawString(cl, x + s(18), itY + s(12) + fmT.getAscent());
+            if (shown < 3 && shown < newsData.size() - 1) {
+                g.setColor(NEWS_LINE);
+                g.fillRect(x + s(18), itY + s(28), maxTW, 1);
             }
-
-            iy = itemY + s(30, sc);
+            iy = itY + s(30);
             shown++;
         }
-        if (shown == 0) {
-            g.setFont(f400.deriveFont((float)s(11, sc)));
-            g.setColor(TEXT_DIM);
-            g.drawString("\u041D\u043E\u0432\u043E\u0441\u0442\u0435\u0439 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442", x + s(18, sc), iy + s(8, sc) + g.getFontMetrics().getAscent());
-        }
     }
 
-    /* =====================
-       SOCIAL ICONS
-       ===================== */
-    private void drawSocialIcon(Graphics2D g, int x, int y, int size, float sc, int mx, int my, String type) {
-        boolean hover = mx >= x && mx < x + size && my >= y && my < y + size;
-        buttons.add(new BtnRect(x, y, size, size, "social_" + type));
-
-        g.setColor(hover ? ACCENT_BORDER : LINE);
-        g.fillOval(x, y, size, size);
-        g.setColor(hover ? ACCENT_DIM : new Color(12, 16, 14, 179));
-        g.fillOval(x + 1, y + 1, size - 2, size - 2);
-
-        int iconS = s(18, sc);
-        int cx = x + size / 2;
-        int cy = y + size / 2;
-        Color ic = hover ? ACCENT : TEXT_MUTED;
+    /* ===== SOCIAL ===== */
+    private void paintSocial(Graphics2D g, int x, int y, int sz, int mx, int my, String type) {
+        boolean hov = mx >= x && mx < x + sz && my >= y && my < y + sz;
+        buttons.add(new BtnRect(x, y, sz, sz, "social_" + type));
+        g.setColor(hov ? ACCENT_BORDER : LINE);
+        g.fillOval(x, y, sz, sz);
+        g.setColor(hov ? ACCENT_DIM : new Color(12, 16, 14, 179));
+        g.fillOval(x + 1, y + 1, sz - 2, sz - 2);
+        int icS = s(18);
+        int cx = x + sz / 2;
+        int cy = y + sz / 2;
+        Color ic = hov ? ACCENT : TEXT_MUTED;
         switch (type) {
-            case "telegram" -> drawTelegramIcon(g, cx, cy, iconS, ic);
-            case "discord"  -> drawDiscordIcon(g, cx, cy, iconS, ic);
-            case "globe"    -> drawGlobeIcon(g, cx, cy, iconS, ic);
+            case "telegram" -> drawTgIc(g, cx, cy, icS, ic);
+            case "discord"  -> drawDcIc(g, cx, cy, icS, ic);
+            case "globe"    -> drawGlobeIc(g, cx, cy, icS, ic);
         }
     }
 
-    /* ======================================
-       ICONS (Java2D Path2D — anti-aliased)
-       ====================================== */
-
-    private void drawPlayIcon(Graphics2D g, int cx, int cy, int size, Color color) {
-        float sc = size / 24f;
+    /* ===== ICONS ===== */
+    private void drawPlayIc(Graphics2D g, int cx, int cy, int sz, Color c) {
+        float sc = sz / 24f;
         Path2D p = new Path2D.Float();
-        p.moveTo(cx + (8 - 12) * sc, cy + (5 - 12) * sc);
-        p.lineTo(cx + (8 - 12) * sc, cy + (19 - 12) * sc);
-        p.lineTo(cx + (19 - 12) * sc, cy + (12 - 12) * sc);
+        p.moveTo(cx - 4 * sc, cy - 7 * sc);
+        p.lineTo(cx - 4 * sc, cy + 7 * sc);
+        p.lineTo(cx + 7 * sc, cy);
         p.closePath();
-        g.setColor(color);
-        g.fill(p);
+        g.setColor(c); g.fill(p);
     }
 
-    private void drawCheckIcon(Graphics2D g, int cx, int cy, int size, Color color) {
-        float sc = size / 24f;
-        g.setColor(color);
-        g.setStroke(new BasicStroke(Math.max(1.5f, size * 0.12f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+    private void drawCheckIc(Graphics2D g, int cx, int cy, int sz, Color c) {
+        float sc = sz / 24f;
+        g.setColor(c);
+        g.setStroke(new BasicStroke(Math.max(1.5f, sz * 0.12f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         Path2D p = new Path2D.Float();
-        p.moveTo(cx + (4.83f - 12) * sc, cy + (12 - 12) * sc);
-        p.lineTo(cx + (9 - 12) * sc, cy + (16.17f - 12) * sc);
-        p.lineTo(cx + (19.59f - 12) * sc, cy + (5.59f - 12) * sc);
+        p.moveTo(cx + (4.83f - 12) * sc, cy);
+        p.lineTo(cx + (9 - 12) * sc, cy + 4.17f * sc);
+        p.lineTo(cx + (19.59f - 12) * sc, cy - 6.41f * sc);
         g.draw(p);
         g.setStroke(new BasicStroke(1));
     }
 
-    private void drawSlidersIcon(Graphics2D g, int cx, int cy, int size, Color color) {
-        float sc = size / 24f;
-        g.setColor(color);
-        float sw = Math.max(1f, size * 0.06f);
-        g.setStroke(new BasicStroke(sw));
-        float or = 9 * sc;
-        int orI = (int)or;
+    private void drawGearIc(Graphics2D g, int cx, int cy, int sz, Color c) {
+        float sc = sz / 24f;
+        g.setColor(c);
+        g.setStroke(new BasicStroke(Math.max(1f, sz * 0.06f)));
+        int orI = (int) (9 * sc);
         g.drawOval(cx - orI, cy - orI, orI * 2, orI * 2);
-        float ir = 3.6f * sc;
-        int irI = (int)ir;
+        int irI = (int) (3.6f * sc);
         g.drawOval(cx - irI, cy - irI, irI * 2, irI * 2);
-        float toothLen = 3 * sc;
-        float toothW = 4 * sc;
+        float tl = 3 * sc, tw = 4 * sc;
         for (int i = 0; i < 8; i++) {
             double a = Math.toRadians(i * 45);
-            float midR = (9 - 0.5f) * sc;
-            float tx = cx + (float)Math.cos(a) * midR;
-            float ty = cy + (float)Math.sin(a) * midR;
-            g.translate(tx, ty);
-            g.rotate(a);
-            g.fillRect((int)(-toothW / 2), (int)(-toothLen / 2), (int)toothW, (int)toothLen);
-            g.rotate(-a);
-            g.translate(-tx, -ty);
+            float mR = 8.5f * sc;
+            float tx = cx + (float) Math.cos(a) * mR;
+            float ty = cy + (float) Math.sin(a) * mR;
+            g.translate(tx, ty); g.rotate(a);
+            g.fillRect((int) (-tw / 2), (int) (-tl / 2), (int) tw, (int) tl);
+            g.rotate(-a); g.translate(-tx, -ty);
         }
         g.setStroke(new BasicStroke(1));
     }
 
-    private void drawInfoIcon(Graphics2D g, int cx, int cy, int size, Color color) {
-        float sc = size / 24f;
-        float r = 10 * sc;
-        int ri = (int)r;
-        g.setColor(color);
-        g.setStroke(new BasicStroke(Math.max(1f, size * 0.07f)));
+    private void drawInfoIc(Graphics2D g, int cx, int cy, int sz, Color c) {
+        float sc = sz / 24f;
+        int ri = (int) (10 * sc);
+        g.setColor(c);
+        g.setStroke(new BasicStroke(Math.max(1f, sz * 0.07f)));
         g.drawOval(cx - ri, cy - ri, ri * 2, ri * 2);
         g.setStroke(new BasicStroke(1));
-        float dr = 1.5f * sc;
-        int dri = (int)dr;
-        g.fillOval(cx - dri, cy - (int)(4 * sc) - dri, dri * 2, dri * 2);
-        float sw = 2 * sc;
-        g.fillRect(cx - (int)(sw / 2), cy - (int)(1 * sc), (int)sw, (int)(6 * sc));
+        int dri = (int) (1.5f * sc);
+        g.fillOval(cx - dri, cy - (int) (4 * sc) - dri, dri * 2, dri * 2);
+        int sw = (int) (2 * sc);
+        g.fillRect(cx - sw / 2, cy - (int) sc, sw, (int) (6 * sc));
     }
 
-    private void drawBagIcon(Graphics2D g, int cx, int cy, int size, Color color) {
-        float sc = size / 24f;
-        g.setColor(color);
+    private void drawBagIc(Graphics2D g, int cx, int cy, int sz, Color c) {
+        float sc = sz / 24f;
+        g.setColor(c);
         float bw = 16 * sc, bh = 12 * sc;
-        fillRoundRect(g, cx - bw / 2, cy - bh / 2 + 2 * sc, bw, bh, 2 * sc, color);
+        fillRR(g, cx - bw / 2, cy - bh / 2 + 2 * sc, bw, bh, 2 * sc, c);
         g.setStroke(new BasicStroke(Math.max(1.5f, 1.5f * sc), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        Arc2D handle = new Arc2D.Float(cx - 5 * sc, cy - bh / 2 - 2 * sc, 10 * sc, 8 * sc, 180, 180, Arc2D.OPEN);
-        g.draw(handle);
+        g.draw(new Arc2D.Float(cx - 5 * sc, cy - bh / 2 - 2 * sc, 10 * sc, 8 * sc, 180, 180, Arc2D.OPEN));
         g.setStroke(new BasicStroke(1));
-        float wr = 2 * sc;
-        int wri = (int)wr;
-        g.fillOval(cx - (int)(5 * sc) - wri, cy + (int)(bh / 2) + (int)(2 * sc) - wri, wri * 2, wri * 2);
-        g.fillOval(cx + (int)(5 * sc) - wri, cy + (int)(bh / 2) + (int)(2 * sc) - wri, wri * 2, wri * 2);
+        int wri = (int) (2 * sc);
+        g.fillOval(cx - (int) (5 * sc) - wri, cy + (int) (bh / 2) + (int) (2 * sc) - wri, wri * 2, wri * 2);
+        g.fillOval(cx + (int) (5 * sc) - wri, cy + (int) (bh / 2) + (int) (2 * sc) - wri, wri * 2, wri * 2);
     }
 
-    private void drawExitIcon(Graphics2D g, int cx, int cy, int size, Color color) {
-        float sc = size / 24f;
-        g.setColor(color);
-        int thick = Math.max(2, (int)(Math.max(1.5f, 1.5f * sc)));
-        int dl = cx - (int)(9 * sc), dt = cy - (int)(9 * sc);
-        int dw = (int)(18 * sc), dh = (int)(18 * sc);
-        g.fillRect(dl, dt, thick, dh);
-        g.fillRect(dl, dt, dw, thick);
-        g.fillRect(dl, dt + dh - thick, dw, thick);
-        g.setStroke(new BasicStroke(thick, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        Path2D arrow = new Path2D.Float();
-        arrow.moveTo(cx - 4 * sc, cy);
-        arrow.lineTo(cx + 3 * sc, cy);
-        g.draw(arrow);
-        Path2D head = new Path2D.Float();
-        head.moveTo(cx + 3 * sc, cy - 4 * sc);
-        head.lineTo(cx + 7.5f * sc, cy);
-        head.lineTo(cx + 3 * sc, cy + 4 * sc);
-        g.draw(head);
+    private void drawExitIc(Graphics2D g, int cx, int cy, int sz, Color c) {
+        float sc = sz / 24f;
+        g.setColor(c);
+        int th = Math.max(2, (int) (1.5f * sc));
+        int dl = cx - (int) (9 * sc), dt = cy - (int) (9 * sc);
+        int dw = (int) (18 * sc), dh = (int) (18 * sc);
+        g.fillRect(dl, dt, th, dh);
+        g.fillRect(dl, dt, dw, th);
+        g.fillRect(dl, dt + dh - th, dw, th);
+        g.setStroke(new BasicStroke(th, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        Path2D ar = new Path2D.Float();
+        ar.moveTo(cx - 4 * sc, cy); ar.lineTo(cx + 3 * sc, cy);
+        g.draw(ar);
+        Path2D hd = new Path2D.Float();
+        hd.moveTo(cx + 3 * sc, cy - 4 * sc); hd.lineTo(cx + 7.5f * sc, cy); hd.lineTo(cx + 3 * sc, cy + 4 * sc);
+        g.draw(hd);
         g.setStroke(new BasicStroke(1));
     }
 
-    private void drawTelegramIcon(Graphics2D g, int cx, int cy, int size, Color color) {
-        float sc = size / 24f;
-        g.setColor(color);
-        Path2D p = new Path2D.Float();
+    private void drawTgIc(Graphics2D g, int cx, int cy, int sz, Color c) {
+        float sc = sz / 24f;
         float s = sc * 0.85f;
-        p.moveTo(cx + (-9) * s, cy + 0 * s);
-        p.lineTo(cx + 9 * s, cy + (-6) * s);
-        p.lineTo(cx + 3 * s, cy + 0 * s);
+        g.setColor(c);
+        Path2D p = new Path2D.Float();
+        p.moveTo(cx - 9 * s, cy);
+        p.lineTo(cx + 9 * s, cy - 6 * s);
+        p.lineTo(cx + 3 * s, cy);
         p.lineTo(cx + 9 * s, cy + 6 * s);
-        p.lineTo(cx + (-9) * s, cy + 0 * s);
-        p.moveTo(cx + (-3) * s, cy + 0 * s);
-        p.lineTo(cx + 1 * s, cy + (-3) * s);
-        p.lineTo(cx + 3 * s, cy + 0 * s);
+        p.lineTo(cx - 9 * s, cy);
+        p.moveTo(cx - 3 * s, cy);
+        p.lineTo(cx + s, cy - 3 * s);
+        p.lineTo(cx + 3 * s, cy);
         p.closePath();
         g.fill(p);
     }
 
-    private void drawDiscordIcon(Graphics2D g, int cx, int cy, int size, Color color) {
-        float sc = size / 24f;
-        g.setColor(color);
-        float sw = Math.max(1f, size * 0.06f);
-        g.setStroke(new BasicStroke(sw));
-        float or2 = 9 * sc;
-        int or2i = (int)or2;
-        g.drawOval(cx - or2i, cy - or2i, or2i * 2, or2i * 2);
-        float ew = 2.5f * sc, eh = 3 * sc;
-        int ewi = (int)ew, ehi = (int)eh;
-        g.fillOval(cx - (int)(4 * sc) - ewi / 2, cy - (int)(1.5f * sc) - ehi / 2, ewi, ehi);
-        g.fillOval(cx + (int)(4 * sc) - ewi / 2, cy - (int)(1.5f * sc) - ehi / 2, ewi, ehi);
+    private void drawDcIc(Graphics2D g, int cx, int cy, int sz, Color c) {
+        float sc = sz / 24f;
+        g.setColor(c);
+        g.setStroke(new BasicStroke(Math.max(1f, sz * 0.06f)));
+        int r = (int) (9 * sc);
+        g.drawOval(cx - r, cy - r, r * 2, r * 2);
+        int ew = (int) (2.5f * sc), eh = (int) (3 * sc);
+        g.fillOval(cx - (int) (4 * sc) - ew / 2, cy - (int) (1.5f * sc) - eh / 2, ew, eh);
+        g.fillOval(cx + (int) (4 * sc) - ew / 2, cy - (int) (1.5f * sc) - eh / 2, ew, eh);
         g.setStroke(new BasicStroke(Math.max(1f, 1.2f * sc), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g.draw(new Arc2D.Float(cx - 4 * sc, cy + 1 * sc, 8 * sc, 5 * sc, 200, 140, Arc2D.OPEN));
+        g.draw(new Arc2D.Float(cx - 4 * sc, cy + sc, 8 * sc, 5 * sc, 200, 140, Arc2D.OPEN));
         g.setStroke(new BasicStroke(1));
     }
 
-    private void drawGlobeIcon(Graphics2D g, int cx, int cy, int size, Color color) {
-        float sc = size / 24f;
-        float r = 10 * sc;
-        int ri = (int)r;
-        g.setColor(color);
+    private void drawGlobeIc(Graphics2D g, int cx, int cy, int sz, Color c) {
+        float sc = sz / 24f;
+        int r = (int) (10 * sc);
+        g.setColor(c);
         g.setStroke(new BasicStroke(Math.max(1f, 1.2f * sc)));
-        g.drawOval(cx - ri, cy - ri, ri * 2, ri * 2);
-        g.draw(new Line2D.Float(cx - ri, cy, cx + ri, cy));
-        g.draw(new Line2D.Float(cx, cy - ri, cx, cy + ri));
-        g.draw(new Arc2D.Float(cx - ri, cy - ri, ri * 2, ri * 2, 60, 60, Arc2D.OPEN));
-        g.draw(new Arc2D.Float(cx - ri, cy - ri, ri * 2, ri * 2, -120, 60, Arc2D.OPEN));
+        g.drawOval(cx - r, cy - r, r * 2, r * 2);
+        g.draw(new Line2D.Float(cx - r, cy, cx + r, cy));
+        g.draw(new Line2D.Float(cx, cy - r, cx, cy + r));
+        g.draw(new Arc2D.Float(cx - r, cy - r, r * 2, r * 2, 60, 60, Arc2D.OPEN));
+        g.draw(new Arc2D.Float(cx - r, cy - r, r * 2, r * 2, -120, 60, Arc2D.OPEN));
         g.setStroke(new BasicStroke(1));
     }
 
-    /* ======================================
-       RENDERING UTILITIES
-       ====================================== */
-
-    private static void fillRoundRect(Graphics2D g, float x, float y, float w, float h, float r, Color c) {
+    /* ===== UTILS ===== */
+    private static void fillRR(Graphics2D g, float x, float y, float w, float h, float r, Color c) {
         g.setColor(c);
         g.fill(new RoundRectangle2D.Float(x, y, w, h, r, r));
     }
@@ -863,50 +702,44 @@ public final class GridRenderer {
         g.fill(p);
     }
 
-    private void drawSpaced(Graphics2D g, String text, float x, float y, float spacing, Color color) {
+    private void drawSpaced(Graphics2D g, String text, float x, float y, float sp, Color color) {
         g.setColor(color);
         FontMetrics fm = g.getFontMetrics();
         float cx = x;
-        boolean lastWasSpace = false;
+        boolean lastSp = false;
         for (int i = 0; i < text.length(); i++) {
             char ch = text.charAt(i);
-            if (ch == ' ') {
-                cx += fm.stringWidth(" ");
-                lastWasSpace = true;
-            } else {
-                if (!lastWasSpace && i > 0) cx += spacing;
+            if (ch == ' ') { cx += fm.stringWidth(" "); lastSp = true; }
+            else {
+                if (!lastSp && i > 0) cx += sp;
                 g.drawString(String.valueOf(ch), cx, y);
                 cx += fm.stringWidth(String.valueOf(ch));
-                lastWasSpace = false;
+                lastSp = false;
             }
         }
     }
 
-    private float spacedWidth(Graphics2D g, String text, float spacing) {
+    private float spacedW(Graphics2D g, String text, float sp) {
         FontMetrics fm = g.getFontMetrics();
         float w = 0;
-        boolean lastWasSpace = false;
+        boolean lastSp = false;
         for (int i = 0; i < text.length(); i++) {
             char ch = text.charAt(i);
-            if (ch == ' ') {
-                w += fm.stringWidth(" ");
-                lastWasSpace = true;
-            } else {
-                if (!lastWasSpace && i > 0) w += spacing;
-                w += fm.stringWidth(String.valueOf(ch));
-                lastWasSpace = false;
-            }
+            if (ch == ' ') { w += fm.stringWidth(" "); lastSp = true; }
+            else { if (!lastSp && i > 0) w += sp; w += fm.stringWidth(String.valueOf(ch)); lastSp = false; }
         }
         return w;
     }
 
-    private static int s(float cssPx, float sc) { return Math.max(1, (int)(cssPx * sc)); }
+    private static int s(float cssPx) {
+        return Math.max(1, (int) (cssPx * SC));
+    }
 
-    private static String formatBalance(long value) {
-        String d = String.valueOf(Math.abs(value));
+    private static String fmtBal(long v) {
+        String d = String.valueOf(Math.abs(v));
         StringBuilder sb = new StringBuilder(d);
         for (int i = sb.length() - 3; i > 0; i -= 3) sb.insert(i, ' ');
-        if (value < 0) sb.insert(0, '-');
+        if (v < 0) sb.insert(0, '-');
         return sb.toString();
     }
 }
