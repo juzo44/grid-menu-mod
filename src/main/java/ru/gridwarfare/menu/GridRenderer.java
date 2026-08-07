@@ -102,8 +102,9 @@ public final class GridRenderer {
     }
 
     public void onResize(int sw, int sh) {
-        float ns = Math.min((float) sw / BASE_W, (float) sh / BASE_H);
-        if (Math.abs(ns - cachedBgScale) > 0.01f) cachedBg = null;
+        // Background is resolution-independent (always BASE_W x BASE_H),
+        // but invalidate cached texture on resize so the screen re-renders
+        cachedBg = null;
     }
 
     public BufferedImage render(int screenW, int screenH, int mx, int my) {
@@ -492,7 +493,7 @@ public final class GridRenderer {
             g.drawString("\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430...", x + s(18), listY + s(8) + g.getFontMetrics().getAscent());
             return;
         }
-        if (newsData.size() == 0) {
+        if (newsData.isEmpty()) {
             g.setFont(f400.deriveFont(11f * SC));
             g.setColor(TEXT_DIM);
             g.drawString("\u041D\u043E\u0432\u043E\u0441\u0442\u0435\u0439 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442", x + s(18), listY + s(8) + g.getFontMetrics().getAscent());
@@ -637,21 +638,21 @@ public final class GridRenderer {
         g.setStroke(new BasicStroke(1));
     }
 
-    /** Telegram — exact SVG path from mockup, offset to center in 24x24 viewBox */
+    /** Telegram — airplane only (circle stripped so it renders correctly with single-color fill) */
     private void drawTgIc(Graphics2D g, int cx, int cy, int sz, Color c) {
         float sc = sz / 24f;
         g.setColor(c);
         Path2D p = svgPath(
-            "M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0" +
-            "a12 12 0 00-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325" +
-            "c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23" +
-            "-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91" +
-            ".177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024" +
-            "c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44" +
-            "-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014" +
-            " 3.332-1.386 4.025-1.627 4.476-1.635z"
+            "m4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325" +
+            "c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627" +
+            "-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902" +
+            "-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91" +
+            ".177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212" +
+            "s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345" +
+            "-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44" +
+            "-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663" +
+            " 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"
         );
-        // Center the 24x24 path around (cx, cy)
         g.translate(cx - 12 * sc, cy - 12 * sc);
         g.scale(sc, sc);
         g.fill(p);
@@ -712,12 +713,12 @@ public final class GridRenderer {
         ).matcher(d);
         java.util.ArrayList<String> tokens = new java.util.ArrayList<>();
         while (m.find()) tokens.add(m.group());
-        int i = 0;
+        int[] idx = {0};
         float lastX = 0, lastY = 0, startX = 0, startY = 0;
         float lastCx = 0, lastCy = 0; // for S/T smooth curves
         char lastCmd = ' ';
-        while (i < tokens.size()) {
-            String t = tokens.get(i++);
+        while (idx[0] < tokens.size()) {
+            String t = tokens.get(idx[0]++);
             char cmd = t.charAt(0);
             boolean rel = Character.isLowerCase(cmd);
             char upper = Character.toUpperCase(cmd);
@@ -727,61 +728,61 @@ public final class GridRenderer {
                 else cmd = lastCmd;
                 rel = Character.isLowerCase(cmd);
                 upper = Character.toUpperCase(cmd);
-                i--; // re-read this token as a number
+                idx[0]--; // re-read this token as a number
             }
             float x = rel ? lastX : 0, y = rel ? lastY : 0;
             switch (upper) {
                 case 'M' -> {
-                    x += f(tokens, i); i++; y += f(tokens, i); i++;
-                    if (rel) { x = lastX + f(tokens, i-2); y = lastY + f(tokens, i-1); }
-                    else { x = f(tokens, i-2); y = f(tokens, i-1); }
+                    float mx = f(tokens, idx[0]++);
+                    float my = f(tokens, idx[0]++);
+                    if (rel) { x = lastX + mx; y = lastY + my; }
+                    else { x = mx; y = my; }
                     p.moveTo(x, y); lastX = x; lastY = y; startX = x; startY = y;
-                    // Subsequent coordinate pairs become L
                     lastCmd = 'L'; continue;
                 }
                 case 'L' -> {
-                    float dx = f(tokens, i++); float dy = f(tokens, i++);
+                    float dx = f(tokens, idx[0]++); float dy = f(tokens, idx[0]++);
                     x = rel ? lastX + dx : dx; y = rel ? lastY + dy : dy;
                     p.lineTo(x, y); break;
                 }
-                case 'H' -> { float hv = f(tokens, i++); x = rel ? lastX + hv : hv; p.lineTo(x, lastY); y = lastY; break; }
-                case 'V' -> { float vv = f(tokens, i++); y = rel ? lastY + vv : vv; p.lineTo(lastX, y); x = lastX; break; }
+                case 'H' -> { float hv = f(tokens, idx[0]++); x = rel ? lastX + hv : hv; p.lineTo(x, lastY); y = lastY; break; }
+                case 'V' -> { float vv = f(tokens, idx[0]++); y = rel ? lastY + vv : vv; p.lineTo(lastX, y); x = lastX; break; }
                 case 'C' -> {
-                    float x1 = f(tokens, i++), y1 = f(tokens, i++);
-                    float x2 = f(tokens, i++), y2 = f(tokens, i++);
-                    float x3 = f(tokens, i++), y3 = f(tokens, i++);
+                    float x1 = f(tokens, idx[0]++), y1 = f(tokens, idx[0]++);
+                    float x2 = f(tokens, idx[0]++), y2 = f(tokens, idx[0]++);
+                    float x3 = f(tokens, idx[0]++), y3 = f(tokens, idx[0]++);
                     if (rel) { x1+=lastX; y1+=lastY; x2+=lastX; y2+=lastY; x3+=lastX; y3+=lastY; }
                     p.curveTo(x1, y1, x2, y2, x3, y3);
                     lastCx = x2; lastCy = y2; x = x3; y = y3; break;
                 }
                 case 'S' -> {
-                    float sx = rel ? lastX : 0, sy = rel ? lastY : 0;
-                    float x2 = f(tokens, i++), y2 = f(tokens, i++);
-                    float x3 = f(tokens, i++), y3 = f(tokens, i++);
+                    float x2 = f(tokens, idx[0]++), y2 = f(tokens, idx[0]++);
+                    float x3 = f(tokens, idx[0]++), y3 = f(tokens, idx[0]++]);
                     if (rel) { x2+=lastX; y2+=lastY; x3+=lastX; y3+=lastY; }
                     float rx = 2*lastX - lastCx, ry = 2*lastY - lastCy;
                     p.curveTo(rx, ry, x2, y2, x3, y3);
                     lastCx = x2; lastCy = y2; x = x3; y = y3; break;
                 }
                 case 'Q' -> {
-                    float x1 = f(tokens, i++), y1 = f(tokens, i++);
-                    float x2 = f(tokens, i++), y2 = f(tokens, i++);
+                    float x1 = f(tokens, idx[0]++), y1 = f(tokens, idx[0]++);
+                    float x2 = f(tokens, idx[0]++), y2 = f(tokens, idx[0]++);
                     if (rel) { x1+=lastX; y1+=lastY; x2+=lastX; y2+=lastY; }
                     p.quadTo(x1, y1, x2, y2);
                     lastCx = x1; lastCy = y1; x = x2; y = y2; break;
                 }
                 case 'T' -> {
-                    float x2 = f(tokens, i++), y2 = f(tokens, i++);
+                    float x2 = f(tokens, idx[0]++), y2 = f(tokens, idx[0]++);
                     if (rel) { x2+=lastX; y2+=lastY; }
                     float rx = 2*lastX - lastCx, ry = 2*lastY - lastCy;
                     p.quadTo(rx, ry, x2, y2);
                     lastCx = rx; lastCy = ry; x = x2; y = y2; break;
                 }
                 case 'A' -> {
-                    float rx = f(tokens, i++), ry = f(tokens, i++);
-                    float rot = f(tokens, i++);
-                    float large = f(tokens, i++), sweep = f(tokens, i++);
-                    float ax = f(tokens, i++), ay = f(tokens, i++);
+                    float rx = f(tokens, idx[0]++), ry = f(tokens, idx[0]++);
+                    float rot = f(tokens, idx[0]++);
+                    float large = arcFlag(tokens, idx);
+                    float sweep = arcFlag(tokens, idx);
+                    float ax = f(tokens, idx[0]++), ay = f(tokens, idx[0]++);
                     if (rel) { ax+=lastX; ay+=lastY; }
                     arcTo(p, lastX, lastY, rx, ry, rot, large > 0.5f, sweep > 0.5f, ax, ay);
                     x = ax; y = ay; break;
@@ -796,6 +797,19 @@ public final class GridRenderer {
 
     private static float f(java.util.List<String> t, int i) {
         return i < t.size() ? Float.parseFloat(t.get(i)) : 0f;
+    }
+
+    /** Read an SVG arc flag (0 or 1). Handles concatenated digits like "00" or "01"
+     *  where flags and coordinates run together without separators. */
+    private static float arcFlag(java.util.List<String> t, int[] idx) {
+        if (idx[0] >= t.size()) return 0f;
+        String tok = t.get(idx[0]);
+        if (tok.length() > 1 && tok.charAt(0) >= '0' && tok.charAt(0) <= '1') {
+            char flag = tok.charAt(0);
+            t.set(idx[0], tok.substring(1)); // put remaining digits back
+            return flag - '0';
+        }
+        return f(t, idx[0]++);
     }
 
     /** Convert arc (A/a) to cubic beziers and append to path. */
