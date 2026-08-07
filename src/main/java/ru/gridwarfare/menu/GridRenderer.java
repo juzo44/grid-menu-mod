@@ -55,11 +55,13 @@ public final class GridRenderer {
 
     private Font f400, f500, f600, f700, f900;
     private BufferedImage bgPhoto;
-    private JsonObject authData;
-    private JsonArray newsData;
-    private int serverState = 2;
-    private int onlinePlayers;
-    private int maxPlayers;
+    /* volatile — written by render thread (setAuth/setNews/setServerStatus),
+       read by background render thread inside render(). */
+    private volatile JsonObject authData;
+    private volatile JsonArray newsData;
+    private volatile int serverState = 2;
+    private volatile int onlinePlayers;
+    private volatile int maxPlayers;
     private BufferedImage cachedBg;
     private float cachedBgScale = -1;
     public final List<BtnRect> buttons = new ArrayList<>();
@@ -101,17 +103,18 @@ public final class GridRenderer {
         this.serverState = st; this.onlinePlayers = on; this.maxPlayers = mx;
     }
 
-    public void onResize(int sw, int sh) {
-        // Background is resolution-independent (always BASE_W x BASE_H),
-        // but invalidate cached texture on resize so the screen re-renders
-        cachedBg = null;
-    }
-
     public BufferedImage render(int screenW, int screenH, int mx, int my) {
         screenScale = Math.min((float) screenW / BASE_W, (float) screenH / BASE_H);
         int W = BASE_W, H = BASE_H;
         int bmx = (int) (mx / screenScale);
         int bmy = (int) (my / screenScale);
+
+        /* Snapshot volatile data once so this frame is internally consistent. */
+        final JsonObject aData = authData;
+        final JsonArray  nData = newsData;
+        final int sState   = serverState;
+        final int onl      = onlinePlayers;
+        final int mxP      = maxPlayers;
 
         if (reusableImg == null) reusableImg = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
         Graphics2D cg = reusableImg.createGraphics();
@@ -139,7 +142,7 @@ public final class GridRenderer {
 
         int pad = s(40);
         int topH = s(60);
-        paintTopbar(g, W, pad, s(20));
+        paintTopbar(g, W, pad, s(20), aData);
 
         int contentY = topH;
         int contentH = H - contentY;
@@ -169,15 +172,15 @@ public final class GridRenderer {
         paintSingleBtn(g, menuX, baseY + titleBlockH + titleGap + playH + btnGap, menuW, singleH, bmx, bmy);
         paintSmallBtns(g, menuX, baseY + titleBlockH + titleGap + playH + btnGap + singleH + btnGap, menuW, smallH, bmx, bmy);
 
-        boolean isOn = serverState == 1;
+        boolean isOn = sState == 1;
         int statusH = isOn ? s(110) : s(70);
-        int nc = (newsData == null) ? 0 : Math.min(4, newsData.size());
+        int nc = (nData == null) ? 0 : Math.min(4, nData.size());
         int newsH = s(18) + s(12) + s(9) + (nc == 0 ? s(24) : nc * s(30) + s(8)) + s(18);
         int panelGap = s(10);
         int rightTotalH = statusH + panelGap + newsH;
         int rightY = contentY + (contentH - rightTotalH) / 2;
-        paintStatusPanel(g, rightX, rightY, rightW, statusH);
-        paintNewsPanel(g, rightX, rightY + statusH + panelGap, rightW, newsH);
+        paintStatusPanel(g, rightX, rightY, rightW, statusH, sState, onl, mxP);
+        paintNewsPanel(g, rightX, rightY + statusH + panelGap, rightW, newsH, nData);
 
         int socSize = s(38);
         int socGap = s(10);
@@ -230,7 +233,7 @@ public final class GridRenderer {
     }
 
     /* ===== TOP BAR ===== */
-    private void paintTopbar(Graphics2D g, int W, int pad, int topPad) {
+    private void paintTopbar(Graphics2D g, int W, int pad, int topPad, JsonObject auth) {
         int bm = s(32);
         drawClippedRect(g, pad, topPad, bm, bm, s(5), ACCENT);
         g.setFont(f900.deriveFont(17f * SC));
@@ -240,19 +243,19 @@ public final class GridRenderer {
         g.drawString(gL, pad + (bm - fmG.stringWidth(gL)) / 2, topPad + (bm + fmG.getAscent()) / 2 - fmG.getDescent());
         g.setFont(f700.deriveFont(13f * SC));
         drawSpaced(g, "GRID", pad + bm + s(12), topPad + bm / 2 + (g.getFontMetrics().getAscent() + g.getFontMetrics().getDescent()) / 2 - g.getFontMetrics().getDescent(), s(3), TEXT_MAIN);
-        paintAuthCard(g, W, pad, topPad);
+        paintAuthCard(g, W, pad, topPad, auth);
     }
 
     /* ===== AUTH CARD ===== */
-    private void paintAuthCard(Graphics2D g, int W, int pad, int topPad) {
-        boolean authed = authData != null;
+    private void paintAuthCard(Graphics2D g, int W, int pad, int topPad, JsonObject auth) {
+        boolean authed = auth != null;
         String nick = "\u0413\u041E\u0421\u0422\u042C";
         String rank = "";
         if (authed) {
-            if (authData.has("username")) nick = authData.get("username").getAsString().toUpperCase();
-            if (authData.has("donate") && !authData.get("donate").getAsString().isEmpty())
-                rank = authData.get("donate").getAsString().toUpperCase();
-            if (rank.isEmpty() && authData.has("rank")) rank = authData.get("rank").getAsString().toUpperCase();
+            if (auth.has("username")) nick = auth.get("username").getAsString().toUpperCase();
+            if (auth.has("donate") && !auth.get("donate").getAsString().isEmpty())
+                rank = auth.get("donate").getAsString().toUpperCase();
+            if (rank.isEmpty() && auth.has("rank")) rank = auth.get("rank").getAsString().toUpperCase();
         }
         g.setFont(f600.deriveFont(12f * SC));
         int nickW = g.getFontMetrics().stringWidth(nick);
@@ -263,7 +266,7 @@ public final class GridRenderer {
         }
         int line1W = nickW + rankBadgeW;
         String balLabel = authed ? "\u0411\u0430\u043B\u0430\u043D\u0441: " : "\u0410\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F";
-        String balVal = authed ? fmtBal(balance()) + " \u20BD" : "";
+        String balVal = authed ? fmtBal(balance(auth)) + " \u20BD" : "";
         g.setFont(f400.deriveFont(10f * SC));
         int line2W = g.getFontMetrics().stringWidth(balLabel) + (balVal.isEmpty() ? 0 : g.getFontMetrics().stringWidth(balVal));
         int cw = s(14) * 2 + Math.max(line1W, line2W);
@@ -306,8 +309,8 @@ public final class GridRenderer {
         }
     }
 
-    private long balance() {
-        return (authData != null && authData.has("balance")) ? authData.get("balance").getAsLong() : 0L;
+    private long balance(JsonObject auth) {
+        return (auth != null && auth.has("balance")) ? auth.get("balance").getAsLong() : 0L;
     }
 
     /* ===== 3D TITLE ===== */
@@ -435,7 +438,7 @@ public final class GridRenderer {
     }
 
     /* ===== STATUS PANEL ===== */
-    private void paintStatusPanel(Graphics2D g, int x, int y, int w, int h) {
+    private void paintStatusPanel(Graphics2D g, int x, int y, int w, int h, int state, int online, int max) {
         fillRR(g, x, y, w, h, s(10), LINE);
         fillRR(g, x + 1, y + 1, w - 2, h - 2, s(9), PANEL_BG);
         g.setFont(f600.deriveFont(10f * SC));
@@ -444,7 +447,7 @@ public final class GridRenderer {
         drawSpaced(g, "\u0421\u0422\u0410\u0422\u0423\u0421 \u0421\u0415\u0420\u0412\u0415\u0420\u0410",
             x + s(18), tY + g.getFontMetrics().getAscent(), 1.5f * SC, TEXT_MUTED);
         int rowY = tY + g.getFontMetrics().getHeight() + s(12);
-        boolean on = serverState == 1;
+        boolean on = state == 1;
         Color dotC = on ? ACCENT : new Color(0x61, 0x6A, 0x64);
         int ds = s(6);
         int dcy = rowY + (s(11) - ds) / 2 + ds / 2;
@@ -454,7 +457,7 @@ public final class GridRenderer {
         String lbl;
         Color lblC;
         if (on) { lbl = "\u0421\u0435\u0440\u0432\u0435\u0440 \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442"; lblC = ACCENT; }
-        else if (serverState == 0) { lbl = "\u0421\u0435\u0440\u0432\u0435\u0440 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D"; lblC = new Color(0xE0, 0x66, 0x66); }
+        else if (state == 0) { lbl = "\u0421\u0435\u0440\u0432\u0435\u0440 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D"; lblC = new Color(0xE0, 0x66, 0x66); }
         else { lbl = "\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430..."; lblC = TEXT_MUTED; }
         g.setColor(lblC);
         g.drawString(lbl, x + s(18) + ds + s(7), rowY + g.getFontMetrics().getAscent());
@@ -462,7 +465,7 @@ public final class GridRenderer {
             int numY = rowY + s(11) + s(8);
             g.setFont(f700.deriveFont(26f * SC));
             g.setColor(TEXT_MAIN);
-            String ns = String.valueOf(onlinePlayers);
+            String ns = String.valueOf(online);
             g.drawString(ns, x + s(18), numY + g.getFontMetrics().getAscent());
             int nw = g.getFontMetrics().stringWidth(ns);
             g.setFont(f400.deriveFont(12f * SC));
@@ -473,13 +476,13 @@ public final class GridRenderer {
             int barW = w - s(36);
             int barH = s(3);
             fillRR(g, barX, barY, barW, barH, s(2), LINE);
-            int fW = maxPlayers > 0 ? Math.max(barH, (int) (barW * Math.min(1f, (float) onlinePlayers / maxPlayers))) : barH;
+            int fW = max > 0 ? Math.max(barH, (int) (barW * Math.min(1f, (float) online / max))) : barH;
             fillRR(g, barX, barY, fW, barH, s(2), ACCENT);
         }
     }
 
     /* ===== NEWS PANEL ===== */
-    private void paintNewsPanel(Graphics2D g, int x, int y, int w, int h) {
+    private void paintNewsPanel(Graphics2D g, int x, int y, int w, int h, JsonArray news) {
         fillRR(g, x, y, w, h, s(10), LINE);
         fillRR(g, x + 1, y + 1, w - 2, h - 2, s(9), PANEL_BG);
         g.setFont(f600.deriveFont(10f * SC));
@@ -487,13 +490,13 @@ public final class GridRenderer {
         int tY = y + s(18);
         drawSpaced(g, "\u041D\u041E\u0412\u041E\u0421\u0422\u0418", x + s(18), tY + g.getFontMetrics().getAscent(), 1.5f * SC, TEXT_MUTED);
         int listY = tY + g.getFontMetrics().getHeight() + s(12);
-        if (newsData == null) {
+        if (news == null) {
             g.setFont(f400.deriveFont(11f * SC));
             g.setColor(TEXT_DIM);
             g.drawString("\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430...", x + s(18), listY + s(8) + g.getFontMetrics().getAscent());
             return;
         }
-        if (newsData.isEmpty()) {
+        if (news.isEmpty()) {
             g.setFont(f400.deriveFont(11f * SC));
             g.setColor(TEXT_DIM);
             g.drawString("\u041D\u043E\u0432\u043E\u0441\u0442\u0435\u0439 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442", x + s(18), listY + s(8) + g.getFontMetrics().getAscent());
@@ -502,7 +505,7 @@ public final class GridRenderer {
         int maxTW = w - s(36);
         int iy = listY;
         int shown = 0;
-        for (JsonElement el : newsData) {
+        for (JsonElement el : news) {
             if (shown >= 4) break;
             JsonObject item = el.getAsJsonObject();
             String title = item.has("title") ? item.get("title").getAsString() : "";
@@ -521,7 +524,7 @@ public final class GridRenderer {
             }
             g.setColor(TEXT_MAIN);
             g.drawString(cl, x + s(18), itY + s(12) + fmT.getAscent());
-            if (shown < 3 && shown < newsData.size() - 1) {
+            if (shown < 3 && shown < news.size() - 1) {
                 g.setColor(NEWS_LINE);
                 g.fillRect(x + s(18), itY + s(28), maxTW, 1);
             }
