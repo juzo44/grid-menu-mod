@@ -75,8 +75,7 @@ public final class GridRenderer {
     private float screenScale = 1f;
     private BufferedImage reusableImg;
 
-    /* ═══════════════════ CACHED SVG PATHS (parsed once) ═══════════════════ */
-    private Path2D pathTg, pathDc, pathGlobe;
+    /* ═══════════════════ CACHED SVG PATHS (parsed once, for UI icons only) ═══════════════════ */
     private Path2D pathPlay, pathCheck, pathGear, pathInfo, pathBag, pathExit;
 
     /* ═══════════════════ CACHED ICON IMAGES (24x24 white on transparent) ═══════════════════ */
@@ -115,10 +114,6 @@ public final class GridRenderer {
         pathInfo = svgPath("M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z");
         pathBag = svgPath("M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1.003 1.003 0 0020 4H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z");
         pathExit = svgPath("M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z");
-        // Telegram: airplane only (circle drawn separately in paintSocial for proper color control)
-        pathTg = svgPath("m4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z");
-        pathDc = svgPath("M20.317 4.37a19.79 19.79 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.445.865-.608 1.25-1.845-.276-3.68-.276-5.487 0-.164-.393-.406-.874-.618-1.25a.077.077 0 00-.078-.037 19.74 19.74 0 00-4.885 1.515.07.07 0 00-.032.028C.533 9.046-.319 13.58.099 18.058a.082.082 0 00.031.056c2.053 1.508 4.041 2.423 5.993 3.029a.078.078 0 00.084-.028c.462-.63.873-1.295 1.226-1.994a.076.076 0 00-.042-.106c-.653-.247-1.274-.549-1.872-.892a.077.077 0 01-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 01.078-.01c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 01.078.009c.12.1.246.198.373.293a.077.077 0 01-.007.127 12.3 12.3 0 01-1.873.892.076.076 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028c1.961-.606 3.95-1.522 6.002-3.029a.077.077 0 00.031-.055c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.029zM8.02 15.33c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.332-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.332-.946 2.418-2.157 2.418z");
-        pathGlobe = svgPath("M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z");
 
         // Pre-render icon sprites at 24x24 (white on transparent) — avoids per-frame path transforms
         icPlay = renderIcon(pathPlay, 24, Color.WHITE);
@@ -127,23 +122,10 @@ public final class GridRenderer {
         icInfo = renderIcon(pathInfo, 24, Color.WHITE);
         icBag = renderIcon(pathBag, 24, Color.WHITE);
         icExit = renderIcon(pathExit, 24, Color.WHITE);
-        // Telegram: circle (r=10) centered at (12,12), airplane translated to center within circle
-        icTg = new BufferedImage(24, 24, BufferedImage.TYPE_INT_ARGB);
-        {
-            Graphics2D tg = icTg.createGraphics();
-            tg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            tg.setColor(Color.WHITE);
-            tg.fillOval(2, 2, 20, 20);
-            // The airplane path coords are ~4.96..20.5 x 7.22..18.05, center ~(12.7, 12.6)
-            // Translate so visual center of airplane sits at (12, 12) in the 24x24 icon
-            double ax = 12.7, ay = 12.6;
-            tg.translate(12 - ax, 12 - ay);
-            tg.setColor(Color.WHITE);
-            tg.fill(pathTg);
-            tg.dispose();
-        }
-        icDc = renderIcon(pathDc, 24, Color.WHITE);
-        icGlobe = renderIcon(pathGlobe, 24, Color.WHITE);
+        // Social icons — load real PNGs from resources (white on transparent, 64x64)
+        icTg = loadIconPng("textures/gui/social_telegram.png");
+        icDc = loadIconPng("textures/gui/social_discord.png");
+        icGlobe = loadIconPng("textures/gui/social_globe.png");
 
         // Pre-compute gradient overlay strip for background (ARGB int[] for setRGB)
         overlayStrip = new int[BASE_H];
@@ -222,10 +204,9 @@ public final class GridRenderer {
         int rightW = 280;
         int rightX = W - pad - rightW;
 
-        // Center menu column
+        // Center menu column (HTML: menu-col is flex:1 centered; right-col is position:absolute)
         int menuW = 440;
-        int availForMenu = rightX - pad;
-        int menuX = pad + (availForMenu - menuW) / 2;
+        int menuX = (W - menuW) / 2;
 
         // Title block measurement
         g.setFont(f900.deriveFont(52f));
@@ -447,9 +428,8 @@ public final class GridRenderer {
         int tH = 4 + fmT.getHeight() + 4;
         int tY = baseY + bh - 2;
         int tX = menuX + (menuW - tW) / 2;
-        // Tag: darker background for better contrast
-        fillRR(g, tX, tY, tW, tH, 4, ACCENT_BORDER);
-        fillRR(g, tX + 1, tY + 1, tW - 2, tH - 2, 3, new Color(8, 12, 10, 200));
+        // Tag: transparent background with subtle accent border
+        fillRR(g, tX, tY, tW, tH, 4, new Color(104, 194, 132, 30));
         g.setColor(ACCENT);
         drawSpaced(g, tag, tX + tpx + (tW - tpx * 2 - ttw) / 2, tY + 4 + fmT.getAscent(), tLs, ACCENT);
     }
@@ -592,7 +572,7 @@ public final class GridRenderer {
         g.setColor(TEXT_MUTED);
         int tY = y + 18;
         drawSpaced(g, "\u041D\u041E\u0412\u041E\u0421\u0422\u0418", x + 18, tY + g.getFontMetrics().getAscent(), 1.5f, TEXT_MUTED);
-        int listY = tY + g.getFontMetrics().getHeight() + 12;
+        int listY = tY + g.getFontMetrics().getHeight() + 4;
         if (news == null) {
             g.setFont(f400.deriveFont(11f));
             g.setColor(TEXT_DIM);
@@ -681,6 +661,22 @@ public final class GridRenderer {
         }
         target.setRGB(0, 0, w, h, px, 0, w);
         g.drawImage(target, x, y, null);
+    }
+
+    /** Load a PNG icon from mod resources, scaled to 24x24. */
+    private static BufferedImage loadIconPng(String path) {
+        try (InputStream is = MinecraftHolder.getResource(path)) {
+            if (is == null) return new BufferedImage(24, 24, BufferedImage.TYPE_INT_ARGB);
+            BufferedImage src = ImageIO.read(is);
+            BufferedImage out = new BufferedImage(24, 24, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = out.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.drawImage(src, 0, 0, 24, 24, null);
+            g.dispose();
+            return out;
+        } catch (Exception e) {
+            return new BufferedImage(24, 24, BufferedImage.TYPE_INT_ARGB);
+        }
     }
 
     /** Render a Path2D into a white-on-transparent BufferedImage. */
